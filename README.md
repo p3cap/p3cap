@@ -1,7 +1,9 @@
 <div align="center">
 
-<table border=0>
-<td border=0><h3>
+<img height=100 width=1200 src="./assets/katze.gif" alt="Skill_icons"/>
+
+
+<h3>
 <pre>
 ██████╗░██████╗░░█████╗░░█████╗░██████╗░
 ██╔══██╗╚════██╗██╔══██╗██╔══██╗██╔══██╗
@@ -11,11 +13,11 @@
 ╚═╝░░░░░╚═════╝░░╚════╝░╚═╝░░╚═╝╚═╝░░░░░
 <i>I'm pretending to be a gamdev.</i>
 </pre>
-</h3></td>
-<td border=0>
-<img src="./assets/coolgifivefoundongoogle.gif" alt="Demo Games" width=300/>
-</td>
-</table>
+</h3>
+
+<h3>About me</h3>
+
+<p> Lorem, ipsum dolor sit amet consectetur adipisicing elit. Repudiandae laboriosam molestias eaque rerum ea modi dolore deleniti quos minima. Nostrum magnam corrupti iusto rerum nam sit illum eaque consequuntur temporibus. </p>
 
 <div>
 	<h3>Statistics</h3>
@@ -24,15 +26,11 @@
 	<img src="https://github-readme-stats.vercel.app/api/top-langs/?username=p3cap&theme=vue-dark&show_icons=true&hide_border=true&layout=compact" alt="Demo Games"/>
 </div>
 
-<h3>About me</h3>
-
-<p>I uh</p>
-
-<h3>Stuff that I'm actually good at</h3>
+<h4>Stuff that I'm actually good at</h4>
 
 <img src="https://skillicons.dev/icons?i=py,godot,vue" alt="Skill_icons"/>
 
-<h3>Stuff I also know</h3>
+<h4>Stuff I also kinda know</h4>
 
 <img src="https://skillicons.dev/icons?i=github,robloxstudio,unity,unreal,mysql,cs,cpp,js,ts,firebase,lua,arduino" alt="StuffIKnow_icons"/>
 
@@ -48,7 +46,7 @@
       <img src="https://skillicons.dev/icons?i=gmail" alt="Gmail"/>
     </a>
 		<a href="https://p3cap.itch.io">
-      <img src="https://skillicons.dev/icons?i=Itch" alt="My Games"/>
+      <img src="https://skillicons.dev/icons?i=Itch" alt="My Demo Games"/>
     </a>
 </div>
 
