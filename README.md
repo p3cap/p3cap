@@ -21,13 +21,13 @@
 
 <div>
 	<h3>Statistics</h3>
-	<img src="https://github-readme-stats.vercel.app/api?username=p3cap&theme=vue-dark&show_icons=true&hide_border=true&count_private=false" alt="Demo Games"/>
+	<img width=350 src="https://github-readme-stats.vercel.app/api?username=p3cap&theme=vue-dark&show_icons=true&hide_border=true&count_private=false" alt="Demo Games"/>
 </div>
 <div>
-	<img src="https://github-readme-streak-stats.herokuapp.com/?user=p3cap&theme=vue-dark&hide_border=true" alt="Demo Games"/>
+	<img width=350 src="https://github-readme-streak-stats.herokuapp.com/?user=p3cap&theme=vue-dark&hide_border=true" alt="Demo Games"/>
 </div>
 <div>
-	<img src="https://github-readme-stats.vercel.app/api/top-langs/?username=p3cap&theme=vue-dark&show_icons=true&hide_border=true&layout=compact" alt="Demo Games"/>
+	<img width=350 src="https://github-readme-stats.vercel.app/api/top-langs/?username=p3cap&theme=vue-dark&show_icons=true&hide_border=true&layout=compact" alt="Demo Games"/>
 </div>
 
 <h4>Stuff that I'm actually good at</h4>
