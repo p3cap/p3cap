@@ -1,7 +1,7 @@
 <div align="center">
 
-
-<h1>
+<table border=0>
+<td border=0><h3>
 <pre>
 ██████╗░██████╗░░█████╗░░█████╗░██████╗░
 ██╔══██╗╚════██╗██╔══██╗██╔══██╗██╔══██╗
@@ -9,12 +9,16 @@
 ██╔═══╝░░╚═══██╗██║░░██╗██╔══██║██╔═══╝░
 ██║░░░░░██████╔╝╚█████╔╝██║░░██║██║░░░░░
 ╚═╝░░░░░╚═════╝░░╚════╝░╚═╝░░╚═╝╚═╝░░░░░
-</pre>
-</h1>
-
 <i>I'm pretending to be a gamdev.</i>
+</pre>
+</h3></td>
+<td border=0>
+<img src="./assets/coolgifivefoundongoogle.gif" alt="Demo Games" width=300/>
+</td>
+</table>
+
 <div>
-	<h3>Stats</h3>
+	<h3>Statistics</h3>
 	<img src="https://github-readme-stats.vercel.app/api?username=p3cap&theme=vue-dark&show_icons=true&hide_border=true&count_private=false" alt="Demo Games"/>
 	<img src="https://github-readme-streak-stats.herokuapp.com/?user=p3cap&theme=vue-dark&hide_border=true" alt="Demo Games"/>
 	<img src="https://github-readme-stats.vercel.app/api/top-langs/?username=p3cap&theme=vue-dark&show_icons=true&hide_border=true&layout=compact" alt="Demo Games"/>
@@ -23,7 +27,6 @@
 <h3>About me</h3>
 
 <p>I uh</p>
-
 
 <h3>Stuff that I'm actually good at</h3>
 
@@ -48,8 +51,5 @@
       <img src="https://skillicons.dev/icons?i=Itch" alt="My Games"/>
     </a>
 </div>
-
-<h5>Goofy gif</h5>
-<img src="./assets/soa-game-dev.gif" alt="Demo Games"/>
 
 </div>
