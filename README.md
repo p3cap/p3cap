@@ -1,6 +1,7 @@
 <!--
 Replace every instance of https://YOUR-COOKIE-BACKEND.example.com
 with your deployed backend URL before pushing this README live.
+For Vercel, that will usually be https://YOUR-PROJECT.vercel.app.
 If your repo URL is not https://github.com/p3cap/p3cap, update the redirect target in both links too.
 -->
 
@@ -33,4 +34,8 @@ If your repo URL is not https://github.com/p3cap/p3cap, update the redirect targ
 
 <div align="center">
   <sub>The README itself is the frontend. Every click goes to the backend first, the backend updates state, redirects back to GitHub, and the new images show up after refresh.</sub>
+</div>
+
+<div align="center">
+  <sub>Vercel setup notes: see <a href="./DEPLOYMENT.md">DEPLOYMENT.md</a>.</sub>
 </div>

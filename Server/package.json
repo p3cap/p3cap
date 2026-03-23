@@ -2,11 +2,17 @@
   "name": "p3cap-cookie-readme-server",
   "version": "1.0.0",
   "private": true,
+  "main": "firebase.js",
   "description": "Backend for an interactive GitHub README cookie clicker.",
   "scripts": {
     "start": "node server.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": "22"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "firebase-admin": "^13.5.0",
+    "firebase-functions": "^6.4.0"
   }
 }
