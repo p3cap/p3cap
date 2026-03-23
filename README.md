@@ -14,10 +14,10 @@
 </p>
 
 <p align="center" valign="center">
-  <a href="https://p3cap.vercel.app/actions/click">
+  <a href="https://p3cap.vercel.app/actions/click?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
     <img src="https://p3cap.vercel.app/images/cookie.gif" width="420" alt="Tap the cookie" />
   </a>
-  <a href="https://p3cap.vercel.app/actions/upgrade">
+  <a href="https://p3cap.vercel.app/actions/upgrade?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
     <img src="https://p3cap.vercel.app/images/upgrade-button.svg" alt="Upgrade sidebar" width="280" height="420" />
   </a>
 </p>
@@ -27,9 +27,10 @@
 
 1. Create a public repository named exactly like your GitHub username so GitHub shows its `README.md` on your profile.
 2. Copy this `README.md` file into your repo.
-3. Cutomize your `README.md` if you want to (just keep my name on it pls).
-4. Commit and push the repository to GitHub.
-5. Refresh your profile page and the game will appear there.
+3. Replace `?redirect=https%3A%2F%2Fgithub.com%2Fp3cap` part after links with `?redirect=https%3A%2F%2Fgithub.com%2F<YOUR_USER_NAME>`
+4. Cutomize your `README.md` if you want to (just keep my name on it pls).
+5. Commit and push the repository to GitHub.
+6. Refresh your profile page and the game will appear there.
 <sub>Got stuck? Contact <a src="https://github.com/p3cap">me</a>.</sub>
 
 </details>
@@ -38,8 +39,7 @@
 <summary>How it works?</summary>
 
 - When you click the cookie or upgrade, you open the Vercel-hosted server.
-- The server updates the shared game state, then reloads the previous page URL.
-- If the previous page URL is not available, it uses the configured fallback URL instead.
+- The server updates the shared game state, then redirects you back to `https://github.com/p3cap`.
 - Then the images get requested again when the page loads.
 
 </details>
