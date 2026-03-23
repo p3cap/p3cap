@@ -9,13 +9,13 @@ If your repo URL is not https://github.com/p3cap/p3cap, update the redirect targ
   <h1>Cookie Clicker README</h1>
   <p>Click the cookie, buy upgrades, get redirected back here, then refresh to see the new numbers.</p>
 
-  <a href="https://p3cap.vercel.app/actions/click?redirect=https%3A%2F%2Fgithub.com%2Fp3cap%2Fp3cap">
+  <a href="https://p3cap.vercel.app/actions/click?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
     <img src="./assets/cookie.png" width="180" alt="Click the cookie" />
   </a>
 </div>
 
 <div align="center">
-  <a href="https://p3cap.vercel.app/actions/upgrade?redirect=https%3A%2F%2Fgithub.com%2Fp3cap%2Fp3cap">
+  <a href="https://p3cap.vercel.app/actions/upgrade?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
     <img src="https://p3cap.vercel.app/images/upgrade-button.svg" alt="Upgrade button" />
   </a>
 </div>
