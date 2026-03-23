@@ -260,33 +260,42 @@ function createRequestHandler({ stateStore, defaultRedirectUrl = "" }) {
     }
 
     if (url.pathname === "/actions/click") {
-      await stateStore.mutateState((current) => ({
-        ...current,
-        clicks: current.clicks + current.clickPower,
-        lastLog: `Cookie clicked: +${current.clickPower}`
-      }));
+      if (typeof stateStore.click === "function") {
+        await stateStore.click();
+      } else {
+        await stateStore.mutateState((current) => ({
+          ...current,
+          clicks: current.clicks + current.clickPower,
+          lastLog: `Cookie clicked: +${current.clickPower}`
+        }));
+      }
+
       sendRedirect(response, resolveRedirect(url, defaultRedirectUrl));
       return;
     }
 
     if (url.pathname === "/actions/upgrade") {
-      await stateStore.mutateState((current) => {
-        if (current.clicks < current.upgradeCost) {
+      if (typeof stateStore.upgrade === "function") {
+        await stateStore.upgrade();
+      } else {
+        await stateStore.mutateState((current) => {
+          if (current.clicks < current.upgradeCost) {
+            return {
+              ...current,
+              lastLog: `Upgrade failed: need ${formatNumber(current.upgradeCost - current.clicks)} more`
+            };
+          }
+
+          const upgradeLevel = current.upgradeLevel + 1;
           return {
             ...current,
-            lastLog: `Upgrade failed: need ${formatNumber(current.upgradeCost - current.clicks)} more`
+            clicks: current.clicks - current.upgradeCost,
+            clickPower: current.clickPower + 1,
+            upgradeLevel,
+            lastLog: `Upgrade bought: clicks now give +${current.clickPower + 1}`
           };
-        }
-
-        const upgradeLevel = current.upgradeLevel + 1;
-        return {
-          ...current,
-          clicks: current.clicks - current.upgradeCost,
-          clickPower: current.clickPower + 1,
-          upgradeLevel,
-          lastLog: `Upgrade bought: clicks now give +${current.clickPower + 1}`
-        };
-      });
+        });
+      }
 
       sendRedirect(response, resolveRedirect(url, defaultRedirectUrl));
       return;

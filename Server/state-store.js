@@ -102,42 +102,153 @@ function createFileStateStore({ filePath }) {
   };
 }
 
-function createFirestoreStateStore({ db, collectionName = "readmeCookie", documentId = "state" }) {
-  const docRef = db.collection(collectionName).doc(documentId);
+function createRedisStateStore({ redis, key = "readmeCookie:state" }) {
+  const clickScript = `
+local stateKey = KEYS[1]
+local updatedAt = ARGV[1]
+
+local clickPower = tonumber(redis.call("HGET", stateKey, "clickPower"))
+if not clickPower then
+  clickPower = 1
+end
+
+if redis.call("EXISTS", stateKey) == 0 then
+  redis.call("HSET", stateKey,
+    "clicks", 0,
+    "clickPower", clickPower,
+    "upgradeLevel", 0,
+    "upgradeCost", 10
+  )
+end
+
+local clicks = redis.call("HINCRBY", stateKey, "clicks", clickPower)
+redis.call("HSET", stateKey,
+  "clickPower", clickPower,
+  "upgradeLevel", tonumber(redis.call("HGET", stateKey, "upgradeLevel")) or 0,
+  "upgradeCost", tonumber(redis.call("HGET", stateKey, "upgradeCost")) or 10,
+  "lastLog", "Cookie clicked: +" .. clickPower,
+  "updatedAt", updatedAt
+)
+
+return redis.call("HGETALL", stateKey)
+`;
+
+  const upgradeScript = `
+local stateKey = KEYS[1]
+local updatedAt = ARGV[1]
+
+if redis.call("EXISTS", stateKey) == 0 then
+  redis.call("HSET", stateKey,
+    "clicks", 0,
+    "clickPower", 1,
+    "upgradeLevel", 0,
+    "upgradeCost", 10
+  )
+end
+
+local clicks = tonumber(redis.call("HGET", stateKey, "clicks")) or 0
+local clickPower = tonumber(redis.call("HGET", stateKey, "clickPower")) or 1
+local upgradeLevel = tonumber(redis.call("HGET", stateKey, "upgradeLevel")) or 0
+local upgradeCost = tonumber(redis.call("HGET", stateKey, "upgradeCost")) or 10
+
+if clicks < upgradeCost then
+  local needed = upgradeCost - clicks
+  redis.call("HSET", stateKey,
+    "clicks", clicks,
+    "clickPower", clickPower,
+    "upgradeLevel", upgradeLevel,
+    "upgradeCost", upgradeCost,
+    "lastLog", "Upgrade failed: need " .. needed .. " more",
+    "updatedAt", updatedAt
+  )
+  return redis.call("HGETALL", stateKey)
+end
+
+local nextUpgradeLevel = upgradeLevel + 1
+local nextClickPower = clickPower + 1
+local nextClicks = clicks - upgradeCost
+local nextUpgradeCost = 10 * (2 ^ nextUpgradeLevel)
+
+redis.call("HSET", stateKey,
+  "clicks", nextClicks,
+  "clickPower", nextClickPower,
+  "upgradeLevel", nextUpgradeLevel,
+  "upgradeCost", nextUpgradeCost,
+  "lastLog", "Upgrade bought: clicks now give +" .. nextClickPower,
+  "updatedAt", updatedAt
+)
+
+return redis.call("HGETALL", stateKey)
+`;
+
+  function parseHashState(hash) {
+    if (!hash || Object.keys(hash).length === 0) {
+      return null;
+    }
+
+    return normalizeState(hash);
+  }
+
+  function parseEvalHash(reply) {
+    if (!Array.isArray(reply) || reply.length === 0) {
+      return null;
+    }
+
+    const hash = {};
+    for (let index = 0; index < reply.length; index += 2) {
+      hash[reply[index]] = reply[index + 1];
+    }
+
+    return parseHashState(hash);
+  }
+
+  async function writeInitialState() {
+    const state = normalizeState(initialState);
+    await redis.hset(key, state);
+    return state;
+  }
 
   async function getState() {
-    const snapshot = await docRef.get();
+    const hash = await redis.hgetall(key);
+    const state = parseHashState(hash);
 
-    if (!snapshot.exists) {
-      const state = normalizeState(initialState);
-      await docRef.set(state);
+    if (state) {
       return state;
     }
 
-    return normalizeState(snapshot.data());
+    return writeInitialState();
   }
 
   async function mutateState(mutator) {
-    return db.runTransaction(async (transaction) => {
-      const snapshot = await transaction.get(docRef);
-      const current = normalizeState(snapshot.exists ? snapshot.data() : initialState);
-      const next = await Promise.resolve(mutator(cloneState(current)));
-      const normalized = normalizeState({
-        ...next,
-        updatedAt: new Date().toISOString()
-      });
-      transaction.set(docRef, normalized);
-      return normalized;
+    const current = await getState();
+    const next = await Promise.resolve(mutator(cloneState(current)));
+    const normalized = normalizeState({
+      ...next,
+      updatedAt: new Date().toISOString()
     });
+    await redis.hset(key, normalized);
+    return normalized;
+  }
+
+  async function click() {
+    const result = await redis.eval(clickScript, [key], [new Date().toISOString()]);
+    return parseEvalHash(result) || getState();
+  }
+
+  async function upgrade() {
+    const result = await redis.eval(upgradeScript, [key], [new Date().toISOString()]);
+    return parseEvalHash(result) || getState();
   }
 
   return {
     getState,
-    mutateState
+    mutateState,
+    click,
+    upgrade
   };
 }
 
 module.exports = {
   createFileStateStore,
-  createFirestoreStateStore
+  createRedisStateStore
 };

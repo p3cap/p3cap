@@ -6,13 +6,13 @@ GitHub Pages can serve the README and static assets, but it cannot run this back
 
 ## Vercel
 
-This project is now set up so you can deploy the `Server` directory as a Vercel project.
+This project is set up so you can deploy the `Server` directory as a Vercel project with Redis-based persistence.
 
 ### Why this layout
 
 - `Server/index.js` is a zero-config Express entrypoint for Vercel.
 - `Server/server.js` still runs the local JSON-backed server for local development.
-- `Server/remote-handler.js` uses Firestore so state persists on Vercel.
+- `Server/remote-handler.js` uses Redis so state persists on Vercel without Firebase.
 
 ### Vercel project setup
 
@@ -21,30 +21,25 @@ This project is now set up so you can deploy the `Server` directory as a Vercel 
 3. Leave the framework as the Express backend detected by Vercel.
 4. Deploy once Vercel has picked up the settings.
 
-### Required environment variables
+### Storage setup
 
-Add these in the Vercel project settings:
+As of July 22, 2025, Vercel KV has been sunset for new projects. The Vercel docs now direct new projects to install a Redis integration from the Marketplace instead.
 
-- `FIREBASE_SERVICE_ACCOUNT_JSON`
-  Use the full JSON contents of a Firebase service-account key with Firestore access.
-- `FIREBASE_PROJECT_ID`
-  Your Firebase project ID.
+Inside your Vercel project:
+
+1. Open the `Storage` tab or the Marketplace.
+2. Install an `Upstash Redis` integration for this project.
+3. Let Vercel inject the Redis environment variables automatically.
+
+The backend uses `@upstash/redis` and reads the injected credentials from the environment.
+It supports `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`, and also the older `KV_REST_API_URL` / `KV_REST_API_TOKEN` names.
 
 ### Recommended environment variables
 
 - `README_REDIRECT_URL`
   Example: `https://github.com/p3cap/p3cap`
-- `STATE_COLLECTION`
-  Optional Firestore collection name. Default: `readmeCookie`
-- `STATE_DOCUMENT`
-  Optional Firestore document name. Default: `state`
-
-### Firebase side
-
-1. Create a Firebase project if you do not already have one.
-2. Enable Cloud Firestore.
-3. Create a service account key for the Firebase Admin SDK.
-4. Put that JSON into the `FIREBASE_SERVICE_ACCOUNT_JSON` env var in Vercel.
+- `STATE_KEY`
+  Optional Redis key name. Default: `readmeCookie:state`
 
 ### README setup
 
@@ -64,7 +59,3 @@ npm start
 ```
 
 That runs the local JSON-backed server at `http://localhost:3000`.
-
-## Firebase Hosting
-
-The backend code still has a Firebase Functions entrypoint in `Server/firebase.js`, but the repo is now primarily optimized around Vercel deployment.
