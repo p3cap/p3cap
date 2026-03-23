@@ -7,10 +7,16 @@ If your repo URL is not https://github.com/p3cap/p3cap, update the redirect targ
 
 <div align="center">
   <h1>Cookie Clicker README</h1>
-  <p>Click the cookie, buy upgrades, get redirected back here, then refresh to see the new numbers.</p>
+  <p>Tap the cookie, bounce through the server, refresh GitHub, repeat.</p>
+</div>
 
+<div align="center">
+  <img src="https://p3cap.vercel.app/images/click-hint.svg" alt="Tap the cookie hint" />
+</div>
+
+<div align="center">
   <a href="https://p3cap.vercel.app/actions/click?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-    <img src="./assets/cookie.png" width="180" alt="Click the cookie" />
+    <img src="./assets/cookie.png" width="210" alt="Tap the cookie" />
   </a>
 </div>
 
@@ -29,11 +35,7 @@ If your repo URL is not https://github.com/p3cap/p3cap, update the redirect targ
 </div>
 
 <div align="center">
-  <img src="https://p3cap.vercel.app/images/log.svg" alt="Latest action log from the server" />
-</div>
-
-<div align="center">
-  <sub>The README itself is the frontend. Every click goes to the backend first, the backend updates state, redirects back to GitHub, and the new images show up after refresh.</sub>
+  <sub>Cookie first. Upgrade second. Every click opens the backend, updates state, jumps back here, and shows on refresh.</sub>
 </div>
 
 <div align="center">
