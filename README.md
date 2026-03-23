@@ -38,8 +38,8 @@
 <summary>How it works?</summary>
 
 - When you click the cookie or upgrade, you open the Vercel-hosted server.
-- The server updates the shared game state, then tries to send you back to the previous page.
-- If the browser cannot go back, it uses the configured fallback URL instead.
+- The server updates the shared game state, then reloads the previous page URL.
+- If the previous page URL is not available, it uses the configured fallback URL instead.
 - Then the images get requested again when the page loads.
 
 </details>

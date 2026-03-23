@@ -204,22 +204,7 @@ function renderBackBouncePage(fallbackLocation) {
     </main>
     <script>
       const fallback = ${JSON.stringify(fallbackLocation)};
-      let navigated = false;
-
-      window.addEventListener("pagehide", () => {
-        navigated = true;
-      }, { once: true });
-
-      if (window.history.length > 1) {
-        window.history.back();
-        window.setTimeout(() => {
-          if (!navigated) {
-            window.location.replace(fallback);
-          }
-        }, 150);
-      } else {
-        window.location.replace(fallback);
-      }
+      window.location.replace(fallback);
     </script>
   </body>
 </html>`;
