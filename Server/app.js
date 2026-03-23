@@ -13,15 +13,6 @@ function escapeXml(value) {
     .replace(/'/g, "&apos;");
 }
 
-function formatTimestamp(value) {
-  return new Date(value).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit"
-  });
-}
-
 function summarizeLastLog(message) {
   if (message.startsWith("Cookie clicked: +")) {
     return `Last hit ${message.replace("Cookie clicked: ", "")}`;
@@ -38,48 +29,46 @@ function summarizeLastLog(message) {
   return message;
 }
 
+function svgIcon(icon, accent) {
+  if (icon === "cookie") {
+    return `
+  <circle cx="42" cy="48" r="22" fill="${accent}" />
+  <circle cx="30" cy="38" r="3" fill="#7c2d12" />
+  <circle cx="46" cy="34" r="3" fill="#7c2d12" />
+  <circle cx="54" cy="49" r="3" fill="#7c2d12" />
+  <circle cx="35" cy="57" r="3" fill="#7c2d12" />
+  <circle cx="48" cy="61" r="3" fill="#7c2d12" />`;
+  }
+
+  return `
+  <path d="M42 24 L26 53 H39 L33 74 L58 41 H46 L52 24 Z" fill="${accent}" />`;
+}
+
 function svgStatCard({ width, height, accent, icon, label, value }) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeXml(label)}">
-  <defs>
-    <linearGradient id="panel" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#111827" />
-      <stop offset="100%" stop-color="#020617" />
-    </linearGradient>
-    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="${accent}" />
-      <stop offset="100%" stop-color="#f8fafc" />
-    </linearGradient>
-  </defs>
-  <rect width="${width}" height="${height}" rx="22" fill="#020617" />
-  <rect x="6" y="6" width="${width - 12}" height="${height - 12}" rx="16" fill="url(#panel)" stroke="#233044" stroke-width="2" />
-  <rect x="18" y="18" width="${width - 36}" height="6" rx="3" fill="url(#accent)" />
-  <text x="26" y="54" fill="#f8fafc" font-size="26" font-weight="700" font-family="'Trebuchet MS', 'Segoe UI Emoji', 'Segoe UI', Arial, sans-serif">${escapeXml(icon)}</text>
-  <text x="62" y="54" fill="#94a3b8" font-size="16" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif" letter-spacing="1.8">${escapeXml(label.toUpperCase())}</text>
-  <text x="26" y="96" fill="#f8fafc" font-size="38" font-weight="700" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif">${escapeXml(value)}</text>
+  <rect width="${width}" height="${height}" rx="20" fill="#0f172a" />
+  <rect x="4" y="4" width="${width - 8}" height="${height - 8}" rx="16" fill="#111827" stroke="#243041" stroke-width="2" />
+  <rect x="18" y="18" width="48" height="60" rx="16" fill="#1f2937" />
+  ${svgIcon(icon, accent)}
+  <text x="82" y="42" fill="#94a3b8" font-size="15" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif" letter-spacing="1.6">${escapeXml(label.toUpperCase())}</text>
+  <text x="82" y="81" fill="#f8fafc" font-size="34" font-weight="700" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif">${escapeXml(value)}</text>
 </svg>`;
 }
 
 function svgUpgradePanel(state) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="300" height="270" viewBox="0 0 300 270" role="img" aria-label="Upgrade sidebar">
-  <defs>
-    <linearGradient id="buttonBg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#f97316" />
-      <stop offset="100%" stop-color="#7c2d12" />
-    </linearGradient>
-  </defs>
   <rect width="300" height="270" rx="28" fill="#020617" />
   <rect x="8" y="8" width="284" height="254" rx="22" fill="#111827" stroke="#263343" stroke-width="2" />
-  <rect x="20" y="20" width="260" height="8" rx="4" fill="url(#buttonBg)" />
-  <text x="28" y="54" fill="#fdba74" font-size="16" font-weight="700" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif" letter-spacing="2">UPGRADES</text>
-  <text x="28" y="92" fill="#f8fafc" font-size="30" font-weight="700" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif">+1 click power</text>
-  <text x="28" y="132" fill="#cbd5e1" font-size="18" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif">Cost: ${escapeXml(formatNumber(state.upgradeCost))} cookies</text>
-  <text x="28" y="160" fill="#cbd5e1" font-size="18" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif">Current: +${escapeXml(String(state.clickPower))} per click</text>
-  <text x="28" y="188" fill="#cbd5e1" font-size="18" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif">Level: ${escapeXml(String(state.upgradeLevel))}</text>
-  <rect x="22" y="208" width="256" height="40" rx="20" fill="url(#buttonBg)" />
-  <text x="150" y="234" text-anchor="middle" fill="#fff7ed" font-size="22" font-weight="700" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif">BUY UPGRADE</text>
-  <text x="28" y="202" fill="#fef3c7" font-size="14" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif">${escapeXml(summarizeLastLog(state.lastLog))}</text>
+  <text x="24" y="44" fill="#f8fafc" font-size="16" font-weight="700" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif" letter-spacing="2">UPGRADES</text>
+  <text x="24" y="84" fill="#f8fafc" font-size="28" font-weight="700" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif">+1 click power</text>
+  <text x="24" y="126" fill="#cbd5e1" font-size="18" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif">Cost: ${escapeXml(formatNumber(state.upgradeCost))} cookies</text>
+  <text x="24" y="154" fill="#cbd5e1" font-size="18" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif">Current: +${escapeXml(String(state.clickPower))} per click</text>
+  <text x="24" y="182" fill="#cbd5e1" font-size="18" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif">Level: ${escapeXml(String(state.upgradeLevel))}</text>
+  <text x="24" y="208" fill="#f59e0b" font-size="14" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif">${escapeXml(summarizeLastLog(state.lastLog))}</text>
+  <rect x="22" y="220" width="256" height="32" rx="16" fill="#f97316" />
+  <text x="150" y="242" text-anchor="middle" fill="#fff7ed" font-size="20" font-weight="700" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif">BUY UPGRADE</text>
 </svg>`;
 }
 
@@ -229,7 +218,7 @@ function createRequestHandler({ stateStore, defaultRedirectUrl = "" }) {
         width: 330,
         height: 110,
         accent: "#f59e0b",
-        icon: "🍪",
+        icon: "cookie",
         label: "Cookies",
         value: formatNumber(state.clicks)
       }));
@@ -242,7 +231,7 @@ function createRequestHandler({ stateStore, defaultRedirectUrl = "" }) {
         width: 330,
         height: 110,
         accent: "#22c55e",
-        icon: "⚡",
+        icon: "power",
         label: "Clicks / tap",
         value: `+${state.clickPower}`
       }));
