@@ -1,5 +1,5 @@
 <!--
-Replace every instance of https://YOUR-COOKIE-BACKEND.example.com
+Replace every instance of https://p3cap.vercel.app
 with your deployed backend URL before pushing this README live.
 For Vercel, that will usually be https://YOUR-PROJECT.vercel.app.
 If your repo URL is not https://github.com/p3cap/p3cap, update the redirect target in both links too.
@@ -9,27 +9,27 @@ If your repo URL is not https://github.com/p3cap/p3cap, update the redirect targ
   <h1>Cookie Clicker README</h1>
   <p>Click the cookie, buy upgrades, get redirected back here, then refresh to see the new numbers.</p>
 
-  <a href="https://YOUR-COOKIE-BACKEND.example.com/actions/click?redirect=https%3A%2F%2Fgithub.com%2Fp3cap%2Fp3cap">
+  <a href="https://p3cap.vercel.app/actions/click?redirect=https%3A%2F%2Fgithub.com%2Fp3cap%2Fp3cap">
     <img src="./assets/cookie.png" width="180" alt="Click the cookie" />
   </a>
 </div>
 
 <div align="center">
-  <a href="https://YOUR-COOKIE-BACKEND.example.com/actions/upgrade?redirect=https%3A%2F%2Fgithub.com%2Fp3cap%2Fp3cap">
-    <img src="https://YOUR-COOKIE-BACKEND.example.com/images/upgrade-button.svg" alt="Upgrade button" />
+  <a href="https://p3cap.vercel.app/actions/upgrade?redirect=https%3A%2F%2Fgithub.com%2Fp3cap%2Fp3cap">
+    <img src="https://p3cap.vercel.app/images/upgrade-button.svg" alt="Upgrade button" />
   </a>
 </div>
 
 <div align="center">
-  <img src="https://YOUR-COOKIE-BACKEND.example.com/images/counter.svg" alt="Formatted cookie counter from the server" />
+  <img src="https://p3cap.vercel.app/images/counter.svg" alt="Formatted cookie counter from the server" />
 </div>
 
 <div align="center">
-  <img src="https://YOUR-COOKIE-BACKEND.example.com/images/status.svg" alt="Upgrade status from the server" />
+  <img src="https://p3cap.vercel.app/images/status.svg" alt="Upgrade status from the server" />
 </div>
 
 <div align="center">
-  <img src="https://YOUR-COOKIE-BACKEND.example.com/images/log.svg" alt="Latest action log from the server" />
+  <img src="https://p3cap.vercel.app/images/log.svg" alt="Latest action log from the server" />
 </div>
 
 <div align="center">
