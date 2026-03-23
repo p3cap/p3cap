@@ -43,7 +43,7 @@
     <a href="https://www.instagram.com/mrp3cap/">
       <img src="https://skillicons.dev/icons?i=instagram" alt="Instagram"/>
     </a>
-    <a href="discord.com/users/955968126892277810">
+    <a href="https://discord.com/users/955968126892277810">
       <img src="https://skillicons.dev/icons?i=discord" alt="Discord"/>
     </a>
     <a href="mailto:dev.p3cap@gmail.com">

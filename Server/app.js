@@ -1,4 +1,8 @@
+const fs = require("fs");
+const path = require("path");
+
 const formatter = new Intl.NumberFormat("en-US");
+const COOKIE_IMAGE_PATH = path.join(__dirname, "assets", "cookie.gif");
 
 function formatNumber(value) {
   return formatter.format(Math.max(0, Math.floor(value)));
@@ -80,6 +84,14 @@ function sendSvg(response, svg) {
     Expires: "0"
   });
   response.end(svg);
+}
+
+function sendGif(response, image) {
+  response.writeHead(200, {
+    "Content-Type": "image/gif",
+    "Cache-Control": "public, max-age=31536000, immutable"
+  });
+  response.end(image);
 }
 
 function sendJson(response, data) {
@@ -209,6 +221,11 @@ function createRequestHandler({ stateStore, defaultRedirectUrl = "" }) {
     if (url.pathname === "/api/state") {
       const state = await stateStore.getState();
       sendJson(response, state);
+      return;
+    }
+
+    if (url.pathname === "/images/cookie.gif") {
+      sendGif(response, fs.readFileSync(COOKIE_IMAGE_PATH));
       return;
     }
 
