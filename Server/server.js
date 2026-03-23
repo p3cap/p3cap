@@ -9,8 +9,7 @@ const STATE_FILE = process.env.STATE_FILE || path.join(__dirname, "data", "state
 const stateStore = createFileStateStore({ filePath: STATE_FILE });
 const handleRequest = createRequestHandler({
   stateStore,
-  defaultRedirectUrl: process.env.README_REDIRECT_URL || "",
-  resetToken: process.env.RESET_TOKEN || ""
+  defaultRedirectUrl: process.env.README_REDIRECT_URL || ""
 });
 
 async function main() {

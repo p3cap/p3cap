@@ -222,13 +222,13 @@ function renderHome(state, defaultRedirectUrl) {
       <p><strong>Next upgrade:</strong> ${escapeXml(formatExactNumber(state.upgradeCost))} (${escapeXml(formatCompactNumber(state.upgradeCost))})</p>
       <p><strong>Last log:</strong> ${escapeXml(state.lastLog)}</p>
       <p>${hint}</p>
-      <p>Endpoints: <code>/actions/click</code>, <code>/actions/upgrade</code>, <code>/admin/reset?token=YOUR_RESET_TOKEN</code>, <code>/images/counter.svg</code>, <code>/images/status.svg</code>, <code>/images/upgrade-button.svg</code>.</p>
+      <p>Endpoints: <code>/actions/click</code>, <code>/actions/upgrade</code>, <code>/images/counter.svg</code>, <code>/images/status.svg</code>, <code>/images/upgrade-button.svg</code>.</p>
     </main>
   </body>
 </html>`;
 }
 
-function createRequestHandler({ stateStore, defaultRedirectUrl = "", resetToken = "" }) {
+function createRequestHandler({ stateStore, defaultRedirectUrl = "" }) {
   return async function handleRequest(request, response) {
     const url = getRequestUrl(request);
 
@@ -252,38 +252,6 @@ function createRequestHandler({ stateStore, defaultRedirectUrl = "", resetToken 
 
     if (url.pathname === "/images/cookie.gif") {
       sendGif(response, fs.readFileSync(COOKIE_IMAGE_PATH));
-      return;
-    }
-
-    if (url.pathname === "/admin/reset") {
-      const providedToken = url.searchParams.get("token") || "";
-
-      if (!resetToken || providedToken !== resetToken) {
-        response.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
-        response.end("Forbidden");
-        return;
-      }
-
-      if (typeof stateStore.reset === "function") {
-        await stateStore.reset();
-      } else {
-        await stateStore.mutateState(() => ({
-          clicks: 0,
-          clickPower: 1,
-          upgradeLevel: 0,
-          upgradeCost: 10,
-          lastLog: "Cookie shop ready."
-        }));
-      }
-
-      const redirectTarget = resolveRedirect(url, "");
-
-      if (redirectTarget !== "/") {
-        sendRedirect(response, redirectTarget);
-        return;
-      }
-
-      sendJson(response, await stateStore.getState());
       return;
     }
 

@@ -105,10 +105,7 @@ function createFileStateStore({ filePath }) {
 
   return {
     getState,
-    mutateState,
-    reset() {
-      return saveState(createFreshInitialState());
-    }
+    mutateState
   };
 }
 
@@ -254,10 +251,7 @@ return redis.call("HGETALL", stateKey)
     getState,
     mutateState,
     click,
-    upgrade,
-    reset() {
-      return writeInitialState();
-    }
+    upgrade
   };
 }
 
