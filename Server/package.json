@@ -1,0 +1,12 @@
+{
+  "name": "p3cap-cookie-readme-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend for an interactive GitHub README cookie clicker.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
