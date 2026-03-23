@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>Cookie Clicker README</h1>
+  <h2>Cookie Clicker README</h2>
   <p>A <b>global game</b> on your profile README.</p>
   <sub>(Use desktop view from phone.)</sub>
   <hr>
@@ -14,7 +14,7 @@
   <sub><strong>TAP THE COOKIE</strong> to earn cookies, then buy upgrades on the right.</sub>
 </p>
 
-<p align="center">
+<p align="center" valign="center">
   <a href="https://p3cap.vercel.app/actions/click">
     <img src="https://p3cap.vercel.app/images/cookie.gif" width="420" alt="Tap the cookie" />
   </a>
@@ -37,9 +37,11 @@
 
 <details>
 <summary>How it works?</summary>
-When you click the cookie / upgarde it redirects you to a vercel hosted server.
-The server does it's thing and redirects you back to the profile page.
-Then the images get requted again, since the page refreshed.
+
+- When you click the cookie / upgarde it redirects you to a vercel hosted server.
+- The server does it's thing and redirects you back to the profile page.
+- Then the images get requted again, since the page refreshed.
+
 </details>
 
 <p align="center">
