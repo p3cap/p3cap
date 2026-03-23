@@ -40,6 +40,8 @@ It supports `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`, and also the 
   Example: `https://github.com/p3cap/p3cap`
 - `STATE_KEY`
   Optional Redis key name. Default: `readmeCookie:state`
+- `RESET_TOKEN`
+  Optional but recommended. Protects the reset endpoint at `/admin/reset?token=YOUR_RESET_TOKEN`
 
 ### README setup
 

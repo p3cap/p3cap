@@ -10,6 +10,13 @@ const initialState = {
   updatedAt: new Date().toISOString()
 };
 
+function createFreshInitialState() {
+  return {
+    ...initialState,
+    updatedAt: new Date().toISOString()
+  };
+}
+
 function calculateUpgradeCost(upgradeLevel) {
   return 10 * Math.pow(2, upgradeLevel);
 }
@@ -60,7 +67,7 @@ function createFileStateStore({ filePath }) {
       cachedState = state;
       return state;
     } catch (error) {
-      const state = normalizeState(initialState);
+      const state = normalizeState(createFreshInitialState());
       await fs.writeFile(filePath, JSON.stringify(state, null, 2));
       cachedState = state;
       return state;
@@ -98,7 +105,10 @@ function createFileStateStore({ filePath }) {
 
   return {
     getState,
-    mutateState
+    mutateState,
+    reset() {
+      return saveState(createFreshInitialState());
+    }
   };
 }
 
@@ -203,7 +213,7 @@ return redis.call("HGETALL", stateKey)
   }
 
   async function writeInitialState() {
-    const state = normalizeState(initialState);
+    const state = normalizeState(createFreshInitialState());
     await redis.hset(key, state);
     return state;
   }
@@ -244,7 +254,10 @@ return redis.call("HGETALL", stateKey)
     getState,
     mutateState,
     click,
-    upgrade
+    upgrade,
+    reset() {
+      return writeInitialState();
+    }
   };
 }
 

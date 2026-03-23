@@ -27,7 +27,8 @@ function getHandler() {
 
   cachedHandler = createRequestHandler({
     stateStore,
-    defaultRedirectUrl: process.env.README_REDIRECT_URL || ""
+    defaultRedirectUrl: process.env.README_REDIRECT_URL || "",
+    resetToken: process.env.RESET_TOKEN || ""
   });
 
   return cachedHandler;

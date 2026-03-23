@@ -4,8 +4,32 @@ const path = require("path");
 const formatter = new Intl.NumberFormat("en-US");
 const COOKIE_IMAGE_PATH = path.join(__dirname, "assets", "cookie.gif");
 
-function formatNumber(value) {
+function formatExactNumber(value) {
   return formatter.format(Math.max(0, Math.floor(value)));
+}
+
+function formatCompactNumber(value) {
+  const number = Math.max(0, Number(value) || 0);
+
+  if (number < 1000) {
+    return formatExactNumber(number);
+  }
+
+  const units = [
+    { value: 1e12, suffix: "T" },
+    { value: 1e9, suffix: "B" },
+    { value: 1e6, suffix: "M" },
+    { value: 1e3, suffix: "K" }
+  ];
+
+  for (const unit of units) {
+    if (number >= unit.value) {
+      const short = (number / unit.value).toFixed(number >= unit.value * 100 ? 0 : 1);
+      return `${short.replace(/\.0$/, "")}${unit.suffix}`;
+    }
+  }
+
+  return formatExactNumber(number);
 }
 
 function escapeXml(value) {
@@ -19,7 +43,8 @@ function escapeXml(value) {
 
 function summarizeLastLog(message) {
   if (message.startsWith("Cookie clicked: +")) {
-    return `Last hit ${message.replace("Cookie clicked: ", "")}`;
+    const amount = Number(message.replace("Cookie clicked: +", ""));
+    return `Last hit +${formatCompactNumber(amount)}`;
   }
 
   if (message.startsWith("Upgrade bought:")) {
@@ -27,7 +52,8 @@ function summarizeLastLog(message) {
   }
 
   if (message.startsWith("Upgrade failed: need ")) {
-    return message.replace("Upgrade failed: need ", "Need ");
+    const amount = Number(message.replace("Upgrade failed: need ", "").replace(" more", ""));
+    return `Need ${formatCompactNumber(amount)} more`;
   }
 
   return message;
@@ -67,8 +93,8 @@ function svgUpgradePanel(state) {
   <rect x="8" y="8" width="284" height="254" rx="22" fill="#111827" stroke="#263343" stroke-width="2" />
   <text x="24" y="44" fill="#f8fafc" font-size="16" font-weight="700" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif" letter-spacing="2">UPGRADES</text>
   <text x="24" y="84" fill="#f8fafc" font-size="28" font-weight="700" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif">+1 click power</text>
-  <text x="24" y="126" fill="#cbd5e1" font-size="18" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif">Cost: ${escapeXml(formatNumber(state.upgradeCost))} cookies</text>
-  <text x="24" y="154" fill="#cbd5e1" font-size="18" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif">Current: +${escapeXml(String(state.clickPower))} per click</text>
+  <text x="24" y="126" fill="#cbd5e1" font-size="18" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif">Cost: ${escapeXml(formatCompactNumber(state.upgradeCost))} cookies</text>
+  <text x="24" y="154" fill="#cbd5e1" font-size="18" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif">Current: +${escapeXml(formatCompactNumber(state.clickPower))} per click</text>
   <text x="24" y="182" fill="#cbd5e1" font-size="18" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif">Level: ${escapeXml(String(state.upgradeLevel))}</text>
   <text x="24" y="208" fill="#f59e0b" font-size="14" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif">${escapeXml(summarizeLastLog(state.lastLog))}</text>
   <rect x="22" y="220" width="256" height="32" rx="16" fill="#f97316" />
@@ -191,18 +217,18 @@ function renderHome(state, defaultRedirectUrl) {
     <main>
       <h1>README Cookie Backend</h1>
       <p>This server powers an interactive GitHub README by storing clicks, serving dynamic SVGs, and redirecting back to GitHub after every action.</p>
-      <p><strong>Clicks:</strong> ${escapeXml(formatNumber(state.clicks))}</p>
-      <p><strong>Power:</strong> +${escapeXml(String(state.clickPower))} per click</p>
-      <p><strong>Next upgrade:</strong> ${escapeXml(formatNumber(state.upgradeCost))}</p>
+      <p><strong>Clicks:</strong> ${escapeXml(formatExactNumber(state.clicks))} (${escapeXml(formatCompactNumber(state.clicks))})</p>
+      <p><strong>Power:</strong> +${escapeXml(formatExactNumber(state.clickPower))} per click (${escapeXml(formatCompactNumber(state.clickPower))})</p>
+      <p><strong>Next upgrade:</strong> ${escapeXml(formatExactNumber(state.upgradeCost))} (${escapeXml(formatCompactNumber(state.upgradeCost))})</p>
       <p><strong>Last log:</strong> ${escapeXml(state.lastLog)}</p>
       <p>${hint}</p>
-      <p>Endpoints: <code>/actions/click</code>, <code>/actions/upgrade</code>, <code>/images/counter.svg</code>, <code>/images/status.svg</code>, <code>/images/upgrade-button.svg</code>.</p>
+      <p>Endpoints: <code>/actions/click</code>, <code>/actions/upgrade</code>, <code>/admin/reset?token=YOUR_RESET_TOKEN</code>, <code>/images/counter.svg</code>, <code>/images/status.svg</code>, <code>/images/upgrade-button.svg</code>.</p>
     </main>
   </body>
 </html>`;
 }
 
-function createRequestHandler({ stateStore, defaultRedirectUrl = "" }) {
+function createRequestHandler({ stateStore, defaultRedirectUrl = "", resetToken = "" }) {
   return async function handleRequest(request, response) {
     const url = getRequestUrl(request);
 
@@ -229,6 +255,38 @@ function createRequestHandler({ stateStore, defaultRedirectUrl = "" }) {
       return;
     }
 
+    if (url.pathname === "/admin/reset") {
+      const providedToken = url.searchParams.get("token") || "";
+
+      if (!resetToken || providedToken !== resetToken) {
+        response.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
+        response.end("Forbidden");
+        return;
+      }
+
+      if (typeof stateStore.reset === "function") {
+        await stateStore.reset();
+      } else {
+        await stateStore.mutateState(() => ({
+          clicks: 0,
+          clickPower: 1,
+          upgradeLevel: 0,
+          upgradeCost: 10,
+          lastLog: "Cookie shop ready."
+        }));
+      }
+
+      const redirectTarget = resolveRedirect(url, "");
+
+      if (redirectTarget !== "/") {
+        sendRedirect(response, redirectTarget);
+        return;
+      }
+
+      sendJson(response, await stateStore.getState());
+      return;
+    }
+
     if (url.pathname === "/images/counter.svg") {
       const state = await stateStore.getState();
       sendSvg(response, svgStatCard({
@@ -237,7 +295,7 @@ function createRequestHandler({ stateStore, defaultRedirectUrl = "" }) {
         accent: "#f59e0b",
         icon: "cookie",
         label: "Cookies",
-        value: formatNumber(state.clicks)
+        value: formatCompactNumber(state.clicks)
       }));
       return;
     }
@@ -250,7 +308,7 @@ function createRequestHandler({ stateStore, defaultRedirectUrl = "" }) {
         accent: "#22c55e",
         icon: "power",
         label: "Clicks / tap",
-        value: `+${state.clickPower}`
+        value: `+${formatCompactNumber(state.clickPower)}`
       }));
       return;
     }
@@ -284,7 +342,7 @@ function createRequestHandler({ stateStore, defaultRedirectUrl = "" }) {
           if (current.clicks < current.upgradeCost) {
             return {
               ...current,
-              lastLog: `Upgrade failed: need ${formatNumber(current.upgradeCost - current.clicks)} more`
+              lastLog: `Upgrade failed: need ${current.upgradeCost - current.clicks} more`
             };
           }
 
