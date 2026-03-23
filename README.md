@@ -1,8 +1,7 @@
 <div align="center">
-  <h2>Cookie Clicker README</h2>
+  <h1>Cookie Clicker README</h1>
   <p>A <b>global game</b> on your profile README.</p>
-  <sub>(Use desktop view from phone.)</sub>
-  <hr>
+  <sub>(Recommended desktop view from phone.)</sub>
 </div>
 
 <p align="center">
