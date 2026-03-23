@@ -7,35 +7,34 @@ If your repo URL is not https://github.com/p3cap/p3cap, update the redirect targ
 
 <div align="center">
   <h1>Cookie Clicker README</h1>
-  <p>Tap the cookie, bounce through the server, refresh GitHub, repeat.</p>
+  <p>Click the cookie. Buy upgrades. Refresh GitHub.</p>
 </div>
 
 <div align="center">
-  <img src="https://p3cap.vercel.app/images/click-hint.svg" alt="Tap the cookie hint" />
+  <img src="https://p3cap.vercel.app/images/counter.svg" alt="Cookie counter" />
+  <img src="https://p3cap.vercel.app/images/status.svg" alt="Clicks per tap counter" />
 </div>
 
-<div align="center">
-  <a href="https://p3cap.vercel.app/actions/click?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-    <img src="./assets/cookie.png" width="210" alt="Tap the cookie" />
-  </a>
-</div>
+<table align="center">
+  <tr>
+    <td align="center" valign="top">
+      <a href="https://p3cap.vercel.app/actions/click?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
+        <img src="./assets/cookie_anim.gif" width="256" height="256" alt="Click the cookie" />
+      </a>
+      <br />
+      <sub><strong>CLICK THE COOKIE</strong></sub>
+    </td>
+    <td width="24"></td>
+    <td align="center" valign="top">
+      <a href="https://p3cap.vercel.app/actions/upgrade?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
+        <img src="https://p3cap.vercel.app/images/upgrade-button.svg" alt="Upgrade sidebar" />
+      </a>
+    </td>
+  </tr>
+</table>
 
 <div align="center">
-  <a href="https://p3cap.vercel.app/actions/upgrade?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-    <img src="https://p3cap.vercel.app/images/upgrade-button.svg" alt="Upgrade button" />
-  </a>
-</div>
-
-<div align="center">
-  <img src="https://p3cap.vercel.app/images/counter.svg" alt="Formatted cookie counter from the server" />
-</div>
-
-<div align="center">
-  <img src="https://p3cap.vercel.app/images/status.svg" alt="Upgrade status from the server" />
-</div>
-
-<div align="center">
-  <sub>Cookie first. Upgrade second. Every click opens the backend, updates state, jumps back here, and shows on refresh.</sub>
+  <sub>Left: main click. Right: upgrade shop. Each action goes through the server and shows up after refresh.</sub>
 </div>
 
 <div align="center">
