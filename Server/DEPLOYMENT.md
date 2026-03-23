@@ -53,6 +53,7 @@ The backend supports both of these env var pairs:
 ### Recommended environment variables
 
 - `README_REDIRECT_URL`
+  Optional fallback URL if the browser cannot go back in history.
   Example: `https://github.com/YOUR_USERNAME`
 - `STATE_KEY`
   Optional custom Redis key. Default: `readmeCookie:state`

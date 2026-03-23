@@ -37,9 +37,10 @@
 <details>
 <summary>How it works?</summary>
 
-- When you click the cookie / upgarde it redirects you to a vercel hosted server.
-- The server does it's thing and redirects you back to the profile page.
-- Then the images get requted again, since the page refreshed.
+- When you click the cookie or upgrade, you open the Vercel-hosted server.
+- The server updates the shared game state, then tries to send you back to the previous page.
+- If the browser cannot go back, it uses the configured fallback URL instead.
+- Then the images get requested again when the page loads.
 
 </details>
 
