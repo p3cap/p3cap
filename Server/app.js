@@ -136,15 +136,11 @@ function sendHtml(response, html) {
   response.end(html);
 }
 
-function sendRedirect(response, location) {
-  response.writeHead(302, {
-    Location: location,
-    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"
-  });
-  response.end();
-}
-
 function getSafeAbsoluteUrl(candidate) {
+  if (!candidate) {
+    return "";
+  }
+
   if (!candidate) {
     return "";
   }
@@ -167,6 +163,55 @@ function resolveFallbackLocation(request, url, defaultRedirectUrl) {
   const configured = getSafeAbsoluteUrl(defaultRedirectUrl);
 
   return requested || referrer || configured || "/";
+}
+
+function renderBackBouncePage(fallbackLocation) {
+  const safeFallback = escapeXml(fallbackLocation);
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Returning...</title>
+    <meta http-equiv="refresh" content="2;url=${safeFallback}" />
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #020617;
+        color: #f8fafc;
+        font: 16px/1.5 "Segoe UI", Arial, sans-serif;
+      }
+      main {
+        padding: 24px;
+        text-align: center;
+      }
+      a {
+        color: #fbbf24;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p>Returning to the previous page...</p>
+      <p><a href="${safeFallback}">Continue manually</a></p>
+    </main>
+    <script>
+      const fallback = ${JSON.stringify(fallbackLocation)};
+      window.location.replace(fallback);
+    </script>
+  </body>
+</html>`;
+}
+
+function sendBackBounce(response, fallbackLocation) {
+  sendHtml(response, renderBackBouncePage(fallbackLocation));
 }
 
 function getRequestUrl(request) {
@@ -303,7 +348,7 @@ function createRequestHandler({ stateStore, defaultRedirectUrl = "" }) {
         }));
       }
 
-      sendRedirect(response, resolveFallbackLocation(request, url, defaultRedirectUrl));
+      sendBackBounce(response, resolveFallbackLocation(request, url, defaultRedirectUrl));
       return;
     }
 
@@ -330,7 +375,7 @@ function createRequestHandler({ stateStore, defaultRedirectUrl = "" }) {
         });
       }
 
-      sendRedirect(response, resolveFallbackLocation(request, url, defaultRedirectUrl));
+      sendBackBounce(response, resolveFallbackLocation(request, url, defaultRedirectUrl));
       return;
     }
 
