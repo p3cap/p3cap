@@ -27,10 +27,11 @@
 
 1. Create a public repository named exactly like your GitHub username so GitHub shows its `README.md` on your profile.
 2. Copy this `README.md` file into your repo.
-3. Cutomize your `README.md` if you want to (just keep my name on it pls).
-4. Commit and push the repository to GitHub.
-5. Refresh your profile page and the game will appear there.
-<sub>Got stuck? Contact <a src="https://github.com/p3cap">me</a>.</sub>
+3. Commit and push the repository to GitHub.
+4. Refresh your profile page and the game will appear there.
+5. Clicking the shared version will send you back to GitHub, not always your exact profile page.
+
+<sub>Want it to return to your own page instead? Deploy your own backend and point the README at that.</sub>
 
 </details>
 
@@ -39,7 +40,8 @@
 
 - When you click the cookie or upgrade, you open the Vercel-hosted server.
 - The server updates the shared game state, then reloads the previous page URL.
-- If the previous page URL is not available, it uses the configured fallback URL instead.
+- On GitHub, cross-site referrers are often reduced to just `https://github.com`, so the shared version may return there instead of your exact profile URL.
+- If you host your own backend, you can set a fallback URL for your own page.
 - Then the images get requested again when the page loads.
 
 </details>

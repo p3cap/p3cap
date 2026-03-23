@@ -71,6 +71,7 @@ If you want to join the shared global game instead:
 
 1. Copy the README as-is.
 2. Leave the links pointed at `https://p3cap.vercel.app`.
+3. The shared backend may return users to `https://github.com` instead of a specific profile page, because GitHub cross-site referrers are often origin-only.
 
 ### Resetting the game privately
 
