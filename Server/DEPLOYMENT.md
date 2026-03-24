@@ -7,7 +7,7 @@
 - The README frontend can either:
   - point at the shared public backend at `https://p3cap.vercel.app`, or
   - point at your own Vercel deployment if you want your own save.
-- The cookie GIF is served by the backend at `/cookieclicker/images/cookie.gif` for the namespaced route layout, so the README does not need any local image assets.
+- The cookie GIF is served by the backend at `/cookieclicker/global/images/cookie.gif` for the fully namespaced route layout, and `/cookieclicker/images/cookie.gif` still aliases the default lobby.
 
 ## GitHub
 
@@ -60,6 +60,13 @@ The backend supports both of these env var pairs:
 - `DEFAULT_GAME_SLUG`
   Optional default game slug used by `/`, `/actions/*`, and `/images/*` legacy aliases.
   Default: `cookieclicker`
+- `DEFAULT_LOBBY_SLUG`
+  Optional default lobby slug used by `/:game/*` short aliases.
+  Default: `global`
+- `ACTION_COOLDOWN_MS`
+  Optional anonymous anti-spam cooldown per IP, per game, per action.
+  New custom lobby creation also uses this cooldown.
+  Default: `800`
 
 ### README usage
 
@@ -86,13 +93,19 @@ To clear the save for your own deployment:
 3. Open the linked Upstash Redis database.
 4. Delete the Redis key used by the game.
 
-Default key:
+Default key for the default game + default lobby:
 
 ```text
 readmeCookie:state
 ```
 
 If you set `STATE_KEY`, delete that key instead.
+
+Custom lobbies use keys in this shape:
+
+```text
+readmeCookie:state:<game-slug>:<lobby-slug>
+```
 
 After deleting the key, the next request will recreate a fresh empty save automatically.
 
@@ -119,6 +132,13 @@ Useful local routes:
 - `/cookieclicker/images/status.svg`
 - `/cookieclicker/images/upgrade-button.svg`
 - `/cookieclicker/images/cookie.gif`
+- `/cookieclicker/global`
+- `/cookieclicker/global/api/state`
+- `/cookieclicker/global/click`
+- `/cookieclicker/global/upgrade`
+- `/cookieclicker/global/images/counter.svg`
+- `/cookieclicker/my-friends/click`
+- `/cookieclicker/my-friends/images/counter.svg`
 
 Legacy aliases still work for the default game:
 
@@ -128,3 +148,9 @@ Legacy aliases still work for the default game:
 - `/images/status.svg`
 - `/images/upgrade-button.svg`
 - `/images/cookie.gif`
+
+Custom lobby rule:
+
+- Any valid lobby slug in the middle URL segment is created automatically on first use.
+- New lobby creation is anonymously throttled per IP and game to reduce spray abuse.
+- Slugs are lowercase letters, numbers, and `-`, up to 48 characters.

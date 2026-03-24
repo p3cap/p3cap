@@ -1,5 +1,13 @@
 const { Redis } = require("@upstash/redis");
-const { createRequestHandler, DEFAULT_GAME_SLUG, normalizeGameSlug } = require("./app");
+const {
+  createRequestHandler,
+  DEFAULT_ACTION_COOLDOWN_MS,
+  DEFAULT_GAME_SLUG,
+  DEFAULT_LOBBY_SLUG,
+  normalizeGameSlug,
+  normalizeLobbySlug
+} = require("./app");
+const { createRedisRateLimiter, normalizeCooldownMs } = require("./rate-limiter");
 const { createRedisStateStore } = require("./state-store");
 
 let cachedHandler = null;
@@ -22,30 +30,42 @@ function getHandler() {
 
   const redis = getRedisClient();
   const defaultGameSlug = normalizeGameSlug(process.env.DEFAULT_GAME_SLUG) || DEFAULT_GAME_SLUG;
+  const defaultLobbySlug = normalizeLobbySlug(process.env.DEFAULT_LOBBY_SLUG) || DEFAULT_LOBBY_SLUG;
   const baseStateKey = process.env.STATE_KEY || "readmeCookie:state";
+  const actionCooldownMs = normalizeCooldownMs(process.env.ACTION_COOLDOWN_MS || DEFAULT_ACTION_COOLDOWN_MS);
   const stateStoreCache = new Map();
+  const rateLimiter = createRedisRateLimiter({
+    redis,
+    keyPrefix: process.env.RATE_LIMIT_KEY_PREFIX || "readmeCookie:ratelimit",
+    cooldownMs: actionCooldownMs
+  });
 
-  function getStateStore(gameSlug) {
+  function getStateStore(gameSlug, lobbySlug) {
     const normalizedGameSlug = normalizeGameSlug(gameSlug) || defaultGameSlug;
+    const normalizedLobbySlug = normalizeLobbySlug(lobbySlug) || defaultLobbySlug;
+    const cacheKey = `${normalizedGameSlug}:${normalizedLobbySlug}`;
 
-    if (!stateStoreCache.has(normalizedGameSlug)) {
-      const stateKey = normalizedGameSlug === defaultGameSlug
+    if (!stateStoreCache.has(cacheKey)) {
+      const stateKey = normalizedGameSlug === defaultGameSlug && normalizedLobbySlug === defaultLobbySlug
         ? baseStateKey
-        : `${baseStateKey}:${normalizedGameSlug}`;
+        : `${baseStateKey}:${normalizedGameSlug}:${normalizedLobbySlug}`;
 
-      stateStoreCache.set(normalizedGameSlug, createRedisStateStore({
+      stateStoreCache.set(cacheKey, createRedisStateStore({
         redis,
         key: stateKey
       }));
     }
 
-    return stateStoreCache.get(normalizedGameSlug);
+    return stateStoreCache.get(cacheKey);
   }
 
   cachedHandler = createRequestHandler({
     getStateStore,
+    rateLimiter,
     defaultRedirectUrl: process.env.README_REDIRECT_URL || "",
-    defaultGameSlug
+    defaultGameSlug,
+    defaultLobbySlug,
+    actionCooldownMs
   });
 
   return cachedHandler;

@@ -57,6 +57,19 @@ function createFileStateStore({ filePath }) {
   let cachedState = null;
   let mutationQueue = Promise.resolve();
 
+  async function hasState() {
+    if (cachedState) {
+      return true;
+    }
+
+    try {
+      await fs.access(filePath);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
   async function ensureStateFile() {
     await fs.mkdir(path.dirname(filePath), { recursive: true });
 
@@ -104,6 +117,7 @@ function createFileStateStore({ filePath }) {
   }
 
   return {
+    hasState,
     getState,
     mutateState
   };
@@ -215,6 +229,11 @@ return redis.call("HGETALL", stateKey)
     return state;
   }
 
+  async function hasState() {
+    const hash = await redis.hgetall(key);
+    return Boolean(parseHashState(hash));
+  }
+
   async function getState() {
     const hash = await redis.hgetall(key);
     const state = parseHashState(hash);
@@ -248,6 +267,7 @@ return redis.call("HGETALL", stateKey)
   }
 
   return {
+    hasState,
     getState,
     mutateState,
     click,

@@ -4,6 +4,8 @@ const path = require("path");
 const formatter = new Intl.NumberFormat("en-US");
 const COOKIE_IMAGE_PATH = path.join(__dirname, "assets", "cookie.gif");
 const DEFAULT_GAME_SLUG = "cookieclicker";
+const DEFAULT_LOBBY_SLUG = "global";
+const DEFAULT_ACTION_COOLDOWN_MS = 800;
 
 const LEGACY_ROUTE_MAP = new Map([
   ["/", "home"],
@@ -16,7 +18,7 @@ const LEGACY_ROUTE_MAP = new Map([
   ["/actions/upgrade", "upgrade"]
 ]);
 
-const GAME_ROUTE_MAP = new Map([
+const SUB_ROUTE_MAP = new Map([
   ["api/state", "state"],
   ["images/cookie.gif", "cookieImage"],
   ["images/counter.svg", "counterImage"],
@@ -28,18 +30,30 @@ const GAME_ROUTE_MAP = new Map([
   ["actions/upgrade", "upgrade"]
 ]);
 
-function normalizeGameSlug(candidate) {
+function normalizeSlug(candidate) {
   const value = String(candidate || "").trim().toLowerCase();
 
-  if (!value || !/^[a-z0-9-]+$/.test(value)) {
+  if (!value || value.length > 48) {
+    return "";
+  }
+
+  if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(value)) {
     return "";
   }
 
   return value;
 }
 
-function formatGameLabel(gameSlug) {
-  return gameSlug
+function normalizeGameSlug(candidate) {
+  return normalizeSlug(candidate);
+}
+
+function normalizeLobbySlug(candidate) {
+  return normalizeSlug(candidate);
+}
+
+function formatSlugLabel(slug) {
+  return slug
     .split("-")
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
@@ -87,12 +101,18 @@ function buildGamePath(gameSlug, suffix = "") {
   return `/${gameSlug}${suffix}`;
 }
 
-function resolveRoute(pathname, defaultGameSlug) {
+function buildLobbyPath(gameSlug, lobbySlug, suffix = "") {
+  return `/${gameSlug}/${lobbySlug}${suffix}`;
+}
+
+function resolveRoute(pathname, defaultGameSlug, defaultLobbySlug) {
   if (LEGACY_ROUTE_MAP.has(pathname)) {
     return {
       gameSlug: defaultGameSlug,
+      lobbySlug: defaultLobbySlug,
       route: LEGACY_ROUTE_MAP.get(pathname),
-      isLegacyAlias: pathname !== "/"
+      isLegacyAlias: pathname !== "/",
+      isDefaultLobbyAlias: true
     };
   }
 
@@ -101,8 +121,10 @@ function resolveRoute(pathname, defaultGameSlug) {
   if (segments.length === 0) {
     return {
       gameSlug: defaultGameSlug,
+      lobbySlug: defaultLobbySlug,
       route: "home",
-      isLegacyAlias: false
+      isLegacyAlias: false,
+      isDefaultLobbyAlias: true
     };
   }
 
@@ -114,20 +136,50 @@ function resolveRoute(pathname, defaultGameSlug) {
   if (segments.length === 1) {
     return {
       gameSlug,
+      lobbySlug: defaultLobbySlug,
       route: "home",
-      isLegacyAlias: false
+      isLegacyAlias: false,
+      isDefaultLobbyAlias: true
     };
   }
 
-  const route = GAME_ROUTE_MAP.get(segments.slice(1).join("/"));
-  if (!route) {
+  const defaultLobbyRoute = SUB_ROUTE_MAP.get(segments.slice(1).join("/"));
+  if (defaultLobbyRoute) {
+    return {
+      gameSlug,
+      lobbySlug: defaultLobbySlug,
+      route: defaultLobbyRoute,
+      isLegacyAlias: false,
+      isDefaultLobbyAlias: true
+    };
+  }
+
+  const lobbySlug = normalizeLobbySlug(segments[1]);
+  if (!lobbySlug) {
+    return null;
+  }
+
+  if (segments.length === 2) {
+    return {
+      gameSlug,
+      lobbySlug,
+      route: "home",
+      isLegacyAlias: false,
+      isDefaultLobbyAlias: lobbySlug === defaultLobbySlug
+    };
+  }
+
+  const lobbyRoute = SUB_ROUTE_MAP.get(segments.slice(2).join("/"));
+  if (!lobbyRoute) {
     return null;
   }
 
   return {
     gameSlug,
-    route,
-    isLegacyAlias: false
+    lobbySlug,
+    route: lobbyRoute,
+    isLegacyAlias: false,
+    isDefaultLobbyAlias: false
   };
 }
 
@@ -218,19 +270,16 @@ function sendJson(response, data) {
   response.end(JSON.stringify(data, null, 2));
 }
 
-function sendHtml(response, html) {
-  response.writeHead(200, {
+function sendHtml(response, html, statusCode = 200, extraHeaders = {}) {
+  response.writeHead(statusCode, {
     "Content-Type": "text/html; charset=utf-8",
-    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    ...extraHeaders
   });
   response.end(html);
 }
 
 function getSafeAbsoluteUrl(candidate) {
-  if (!candidate) {
-    return "";
-  }
-
   if (!candidate) {
     return "";
   }
@@ -300,8 +349,67 @@ function renderBackBouncePage(fallbackLocation) {
 </html>`;
 }
 
+function renderRateLimitBouncePage(fallbackLocation, retryAfterMs) {
+  const safeFallback = escapeXml(fallbackLocation);
+  const retrySeconds = Math.max(1, Math.ceil(retryAfterMs / 1000));
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Slow Down</title>
+    <meta http-equiv="refresh" content="${retrySeconds};url=${safeFallback}" />
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #020617;
+        color: #f8fafc;
+        font: 16px/1.5 "Segoe UI", Arial, sans-serif;
+      }
+      main {
+        width: min(520px, calc(100vw - 32px));
+        padding: 24px;
+        text-align: center;
+      }
+      a {
+        color: #fbbf24;
+      }
+      strong {
+        color: #fbbf24;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p><strong>Slow down a little.</strong></p>
+      <p>This lobby is temporarily throttled for repeated actions from the same IP. Try again in about ${retrySeconds}s.</p>
+      <p><a href="${safeFallback}">Return now</a></p>
+    </main>
+    <script>
+      const fallback = ${JSON.stringify(fallbackLocation)};
+      const retryAfterMs = ${JSON.stringify(retrySeconds * 1000)};
+      window.setTimeout(() => window.location.replace(fallback), retryAfterMs);
+    </script>
+  </body>
+</html>`;
+}
+
 function sendBackBounce(response, fallbackLocation) {
   sendHtml(response, renderBackBouncePage(fallbackLocation));
+}
+
+function sendRateLimitedBounce(response, fallbackLocation, retryAfterMs) {
+  const retrySeconds = Math.max(1, Math.ceil(retryAfterMs / 1000));
+  sendHtml(response, renderRateLimitBouncePage(fallbackLocation, retryAfterMs), 429, {
+    "Retry-After": String(retrySeconds)
+  });
 }
 
 function getRequestUrl(request) {
@@ -311,14 +419,31 @@ function getRequestUrl(request) {
   return new URL(requestUrl, `${protocol}://${host}`);
 }
 
-function renderHome(state, defaultRedirectUrl, gameSlug, isLegacyAlias) {
-  const gameLabel = formatGameLabel(gameSlug);
+function getClientId(request) {
+  const forwardedFor = String(request.headers["x-forwarded-for"] || "")
+    .split(",")
+    .map((value) => value.trim())
+    .find(Boolean);
+  const realIp = String(request.headers["x-real-ip"] || "").trim();
+  const requestIp = String(request.ip || "").trim();
+  const socketIp = request.socket && request.socket.remoteAddress
+    ? String(request.socket.remoteAddress).trim()
+    : "";
+
+  return (forwardedFor || realIp || requestIp || socketIp || "anonymous").toLowerCase();
+}
+
+function renderHome(state, defaultRedirectUrl, gameSlug, lobbySlug, options = {}) {
+  const gameLabel = formatSlugLabel(gameSlug);
+  const canonicalLobbyPath = buildLobbyPath(gameSlug, lobbySlug);
   const hint = defaultRedirectUrl
     ? `Default redirect: <code>${escapeXml(defaultRedirectUrl)}</code>`
     : "Set README_REDIRECT_URL to make action routes bounce back to GitHub automatically.";
-  const canonicalBasePath = buildGamePath(gameSlug);
-  const aliasHint = isLegacyAlias
-    ? `<p><strong>Canonical game path:</strong> <code>${escapeXml(canonicalBasePath)}</code></p>`
+  const aliasHint = options.isLegacyAlias || options.isDefaultLobbyAlias
+    ? `<p><strong>Canonical lobby path:</strong> <code>${escapeXml(canonicalLobbyPath)}</code></p>`
+    : "";
+  const spamHint = options.actionCooldownMs
+    ? `<p><strong>Anonymous anti-spam:</strong> about one action every ${escapeXml((options.actionCooldownMs / 1000).toFixed(options.actionCooldownMs < 1000 ? 1 : 0))}s per IP, per game.</p>`
     : "";
 
   return `<!doctype html>
@@ -326,7 +451,7 @@ function renderHome(state, defaultRedirectUrl, gameSlug, isLegacyAlias) {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${escapeXml(gameLabel)} Backend</title>
+    <title>${escapeXml(gameLabel)} Lobby</title>
     <style>
       :root {
         color-scheme: dark;
@@ -341,7 +466,7 @@ function renderHome(state, defaultRedirectUrl, gameSlug, isLegacyAlias) {
         font: 16px/1.5 "Segoe UI", Arial, sans-serif;
       }
       main {
-        width: min(720px, calc(100vw - 32px));
+        width: min(760px, calc(100vw - 32px));
         background: rgba(15, 23, 42, 0.92);
         border: 1px solid #334155;
         border-radius: 24px;
@@ -360,30 +485,42 @@ function renderHome(state, defaultRedirectUrl, gameSlug, isLegacyAlias) {
   </head>
   <body>
     <main>
-      <h1>${escapeXml(gameLabel)} Backend</h1>
-      <p>This server powers interactive GitHub README games by storing state, serving dynamic SVGs, and redirecting back to GitHub after every action.</p>
+      <h1>${escapeXml(gameLabel)} Lobby</h1>
+      <p>This server powers interactive GitHub README games by storing per-lobby state, serving dynamic SVGs, and redirecting back to GitHub after every action.</p>
       <p><strong>Game slug:</strong> <code>${escapeXml(gameSlug)}</code></p>
+      <p><strong>Lobby ID:</strong> <code>${escapeXml(lobbySlug)}</code></p>
       <p><strong>Clicks:</strong> ${escapeXml(formatExactNumber(state.clicks))} (${escapeXml(formatCompactNumber(state.clicks))})</p>
       <p><strong>Power:</strong> +${escapeXml(formatExactNumber(state.clickPower))} per click (${escapeXml(formatCompactNumber(state.clickPower))})</p>
       <p><strong>Next upgrade:</strong> ${escapeXml(formatExactNumber(state.upgradeCost))} (${escapeXml(formatCompactNumber(state.upgradeCost))})</p>
       <p><strong>Last log:</strong> ${escapeXml(state.lastLog)}</p>
       <p>${hint}</p>
       ${aliasHint}
-      <p>Endpoints: <code>${escapeXml(buildGamePath(gameSlug, "/click"))}</code>, <code>${escapeXml(buildGamePath(gameSlug, "/upgrade"))}</code>, <code>${escapeXml(buildGamePath(gameSlug, "/images/counter.svg"))}</code>, <code>${escapeXml(buildGamePath(gameSlug, "/images/status.svg"))}</code>, <code>${escapeXml(buildGamePath(gameSlug, "/images/upgrade-button.svg"))}</code>.</p>
+      ${spamHint}
+      <p>Endpoints: <code>${escapeXml(buildLobbyPath(gameSlug, lobbySlug, "/click"))}</code>, <code>${escapeXml(buildLobbyPath(gameSlug, lobbySlug, "/upgrade"))}</code>, <code>${escapeXml(buildLobbyPath(gameSlug, lobbySlug, "/images/counter.svg"))}</code>, <code>${escapeXml(buildLobbyPath(gameSlug, lobbySlug, "/images/status.svg"))}</code>, <code>${escapeXml(buildLobbyPath(gameSlug, lobbySlug, "/images/upgrade-button.svg"))}</code>.</p>
+      <p>Create another lobby any time by changing the middle URL segment, for example <code>${escapeXml(buildLobbyPath(gameSlug, "friends", "/click"))}</code>.</p>
     </main>
   </body>
 </html>`;
 }
 
-function createRequestHandler({ stateStore, getStateStore, defaultRedirectUrl = "", defaultGameSlug = DEFAULT_GAME_SLUG }) {
+function createRequestHandler({
+  stateStore,
+  getStateStore,
+  rateLimiter,
+  defaultRedirectUrl = "",
+  defaultGameSlug = DEFAULT_GAME_SLUG,
+  defaultLobbySlug = DEFAULT_LOBBY_SLUG,
+  actionCooldownMs = DEFAULT_ACTION_COOLDOWN_MS
+}) {
   const normalizedDefaultGameSlug = normalizeGameSlug(defaultGameSlug) || DEFAULT_GAME_SLUG;
+  const normalizedDefaultLobbySlug = normalizeLobbySlug(defaultLobbySlug) || DEFAULT_LOBBY_SLUG;
   const resolveStateStore = typeof getStateStore === "function"
-    ? (gameSlug) => Promise.resolve(getStateStore(gameSlug))
+    ? (gameSlug, lobbySlug) => Promise.resolve(getStateStore(gameSlug, lobbySlug))
     : () => Promise.resolve(stateStore);
 
   return async function handleRequest(request, response) {
     const url = getRequestUrl(request);
-    const resolvedRoute = resolveRoute(url.pathname, normalizedDefaultGameSlug);
+    const resolvedRoute = resolveRoute(url.pathname, normalizedDefaultGameSlug, normalizedDefaultLobbySlug);
 
     if (request.method !== "GET") {
       response.writeHead(405, { "Content-Type": "text/plain; charset=utf-8" });
@@ -397,21 +534,55 @@ function createRequestHandler({ stateStore, getStateStore, defaultRedirectUrl = 
       return;
     }
 
-    const { gameSlug, route, isLegacyAlias } = resolvedRoute;
+    const {
+      gameSlug,
+      lobbySlug,
+      route,
+      isLegacyAlias,
+      isDefaultLobbyAlias
+    } = resolvedRoute;
 
     if (route === "cookieImage") {
       sendGif(response, fs.readFileSync(COOKIE_IMAGE_PATH));
       return;
     }
 
-    const activeStateStore = await resolveStateStore(gameSlug);
+    const activeStateStore = await resolveStateStore(gameSlug, lobbySlug);
     if (!activeStateStore || typeof activeStateStore.getState !== "function") {
-      throw new Error(`Missing state store for game "${gameSlug}"`);
+      throw new Error(`Missing state store for ${gameSlug}/${lobbySlug}`);
+    }
+
+    if (
+      lobbySlug !== normalizedDefaultLobbySlug &&
+      rateLimiter &&
+      typeof rateLimiter.consume === "function" &&
+      typeof activeStateStore.hasState === "function" &&
+      !(await activeStateStore.hasState())
+    ) {
+      const lobbyCreationResult = await rateLimiter.consume({
+        action: "lobby-create",
+        gameSlug,
+        lobbySlug,
+        clientId: getClientId(request)
+      });
+
+      if (!lobbyCreationResult.allowed) {
+        sendRateLimitedBounce(
+          response,
+          buildGamePath(gameSlug),
+          lobbyCreationResult.retryAfterMs || actionCooldownMs
+        );
+        return;
+      }
     }
 
     if (route === "home") {
       const state = await activeStateStore.getState();
-      sendHtml(response, renderHome(state, defaultRedirectUrl, gameSlug, isLegacyAlias));
+      sendHtml(response, renderHome(state, defaultRedirectUrl, gameSlug, lobbySlug, {
+        isLegacyAlias,
+        isDefaultLobbyAlias,
+        actionCooldownMs
+      }));
       return;
     }
 
@@ -453,23 +624,34 @@ function createRequestHandler({ stateStore, getStateStore, defaultRedirectUrl = 
       return;
     }
 
-    if (route === "click") {
-      if (typeof activeStateStore.click === "function") {
-        await activeStateStore.click();
-      } else {
-        await activeStateStore.mutateState((current) => ({
-          ...current,
-          clicks: current.clicks + current.clickPower,
-          lastLog: `Cookie clicked: +${current.clickPower}`
-        }));
+    if (route === "click" || route === "upgrade") {
+      const fallbackLocation = resolveFallbackLocation(request, url, defaultRedirectUrl);
+
+      if (rateLimiter && typeof rateLimiter.consume === "function") {
+        const rateLimitResult = await rateLimiter.consume({
+          action: route,
+          gameSlug,
+          lobbySlug,
+          clientId: getClientId(request)
+        });
+
+        if (!rateLimitResult.allowed) {
+          sendRateLimitedBounce(response, fallbackLocation, rateLimitResult.retryAfterMs || actionCooldownMs);
+          return;
+        }
       }
 
-      sendBackBounce(response, resolveFallbackLocation(request, url, defaultRedirectUrl));
-      return;
-    }
-
-    if (route === "upgrade") {
-      if (typeof activeStateStore.upgrade === "function") {
+      if (route === "click") {
+        if (typeof activeStateStore.click === "function") {
+          await activeStateStore.click();
+        } else {
+          await activeStateStore.mutateState((current) => ({
+            ...current,
+            clicks: current.clicks + current.clickPower,
+            lastLog: `Cookie clicked: +${current.clickPower}`
+          }));
+        }
+      } else if (typeof activeStateStore.upgrade === "function") {
         await activeStateStore.upgrade();
       } else {
         await activeStateStore.mutateState((current) => {
@@ -491,7 +673,7 @@ function createRequestHandler({ stateStore, getStateStore, defaultRedirectUrl = 
         });
       }
 
-      sendBackBounce(response, resolveFallbackLocation(request, url, defaultRedirectUrl));
+      sendBackBounce(response, fallbackLocation);
       return;
     }
 
@@ -502,6 +684,9 @@ function createRequestHandler({ stateStore, getStateStore, defaultRedirectUrl = 
 
 module.exports = {
   createRequestHandler,
+  DEFAULT_ACTION_COOLDOWN_MS,
   DEFAULT_GAME_SLUG,
-  normalizeGameSlug
+  DEFAULT_LOBBY_SLUG,
+  normalizeGameSlug,
+  normalizeLobbySlug
 };
