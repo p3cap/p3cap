@@ -1,5 +1,14 @@
 const fs = require("fs");
 const path = require("path");
+const {
+  DOOM_ROUTE_MAP,
+  applyDoomAction,
+  createFreshDoomState,
+  doomRouteNeedsState,
+  normalizeDoomState,
+  renderDoomHome,
+  renderDoomImage
+} = require("./doom-game");
 
 const formatter = new Intl.NumberFormat("en-US");
 const COOKIE_IMAGE_PATH = path.join(__dirname, "assets", "cookie.gif");
@@ -18,7 +27,7 @@ const LEGACY_ROUTE_MAP = new Map([
   ["/actions/upgrade", "upgrade"]
 ]);
 
-const SUB_ROUTE_MAP = new Map([
+const COOKIECLICKER_ROUTE_MAP = new Map([
   ["api/state", "state"],
   ["images/cookie.gif", "cookieImage"],
   ["images/counter.svg", "counterImage"],
@@ -28,6 +37,17 @@ const SUB_ROUTE_MAP = new Map([
   ["upgrade", "upgrade"],
   ["actions/click", "click"],
   ["actions/upgrade", "upgrade"]
+]);
+
+const DOOM_ACTION_ROUTES = new Set([
+  "doomForward",
+  "doomBackward",
+  "doomTurnLeft",
+  "doomTurnRight",
+  "doomStrafeLeft",
+  "doomStrafeRight",
+  "doomShoot",
+  "doomWait"
 ]);
 
 function normalizeSlug(candidate) {
@@ -105,6 +125,26 @@ function buildLobbyPath(gameSlug, lobbySlug, suffix = "") {
   return `/${gameSlug}/${lobbySlug}${suffix}`;
 }
 
+function getRouteMapForGame(gameSlug) {
+  if (gameSlug === "doom") {
+    return DOOM_ROUTE_MAP;
+  }
+
+  if (gameSlug === "cookieclicker") {
+    return COOKIECLICKER_ROUTE_MAP;
+  }
+
+  return null;
+}
+
+function routeNeedsState(gameSlug, route) {
+  if (gameSlug === "doom") {
+    return doomRouteNeedsState(route);
+  }
+
+  return route !== "cookieImage";
+}
+
 function resolveRoute(pathname, defaultGameSlug, defaultLobbySlug) {
   if (LEGACY_ROUTE_MAP.has(pathname)) {
     return {
@@ -129,7 +169,8 @@ function resolveRoute(pathname, defaultGameSlug, defaultLobbySlug) {
   }
 
   const gameSlug = normalizeGameSlug(segments[0]);
-  if (!gameSlug) {
+  const routeMap = getRouteMapForGame(gameSlug);
+  if (!gameSlug || !routeMap) {
     return null;
   }
 
@@ -143,7 +184,7 @@ function resolveRoute(pathname, defaultGameSlug, defaultLobbySlug) {
     };
   }
 
-  const defaultLobbyRoute = SUB_ROUTE_MAP.get(segments.slice(1).join("/"));
+  const defaultLobbyRoute = routeMap.get(segments.slice(1).join("/"));
   if (defaultLobbyRoute) {
     return {
       gameSlug,
@@ -169,7 +210,7 @@ function resolveRoute(pathname, defaultGameSlug, defaultLobbySlug) {
     };
   }
 
-  const lobbyRoute = SUB_ROUTE_MAP.get(segments.slice(2).join("/"));
+  const lobbyRoute = routeMap.get(segments.slice(2).join("/"));
   if (!lobbyRoute) {
     return null;
   }
@@ -433,7 +474,15 @@ function getClientId(request) {
   return (forwardedFor || realIp || requestIp || socketIp || "anonymous").toLowerCase();
 }
 
-function renderHome(state, defaultRedirectUrl, gameSlug, lobbySlug, options = {}) {
+function getActionRateLimitKey(gameSlug, route) {
+  if (gameSlug === "doom" && DOOM_ACTION_ROUTES.has(route)) {
+    return "doom-step";
+  }
+
+  return route;
+}
+
+function renderCookieHome(state, defaultRedirectUrl, gameSlug, lobbySlug, options = {}) {
   const gameLabel = formatSlugLabel(gameSlug);
   const canonicalLobbyPath = buildLobbyPath(gameSlug, lobbySlug);
   const hint = defaultRedirectUrl
@@ -503,6 +552,45 @@ function renderHome(state, defaultRedirectUrl, gameSlug, lobbySlug, options = {}
 </html>`;
 }
 
+async function runCookieAction(route, stateStore) {
+  if (route === "click") {
+    if (typeof stateStore.click === "function") {
+      await stateStore.click();
+      return;
+    }
+
+    await stateStore.mutateState((current) => ({
+      ...current,
+      clicks: current.clicks + current.clickPower,
+      lastLog: `Cookie clicked: +${current.clickPower}`
+    }));
+    return;
+  }
+
+  if (typeof stateStore.upgrade === "function") {
+    await stateStore.upgrade();
+    return;
+  }
+
+  await stateStore.mutateState((current) => {
+    if (current.clicks < current.upgradeCost) {
+      return {
+        ...current,
+        lastLog: `Upgrade failed: need ${current.upgradeCost - current.clicks} more`
+      };
+    }
+
+    const upgradeLevel = current.upgradeLevel + 1;
+    return {
+      ...current,
+      clicks: current.clicks - current.upgradeCost,
+      clickPower: current.clickPower + 1,
+      upgradeLevel,
+      lastLog: `Upgrade bought: clicks now give +${current.clickPower + 1}`
+    };
+  });
+}
+
 function createRequestHandler({
   stateStore,
   getStateStore,
@@ -542,9 +630,16 @@ function createRequestHandler({
       isDefaultLobbyAlias
     } = resolvedRoute;
 
-    if (route === "cookieImage") {
-      sendGif(response, fs.readFileSync(COOKIE_IMAGE_PATH));
-      return;
+    if (!routeNeedsState(gameSlug, route)) {
+      if (gameSlug === "cookieclicker" && route === "cookieImage") {
+        sendGif(response, fs.readFileSync(COOKIE_IMAGE_PATH));
+        return;
+      }
+
+      if (gameSlug === "doom") {
+        sendSvg(response, renderDoomImage(route, createFreshDoomState()));
+        return;
+      }
     }
 
     const activeStateStore = await resolveStateStore(gameSlug, lobbySlug);
@@ -553,6 +648,7 @@ function createRequestHandler({
     }
 
     if (
+      routeNeedsState(gameSlug, route) &&
       lobbySlug !== normalizedDefaultLobbySlug &&
       rateLimiter &&
       typeof rateLimiter.consume === "function" &&
@@ -576,9 +672,54 @@ function createRequestHandler({
       }
     }
 
+    const state = await activeStateStore.getState();
+
+    if (gameSlug === "doom") {
+      if (route === "home") {
+        sendHtml(response, renderDoomHome(state, {
+          defaultRedirectUrl,
+          gameSlug,
+          lobbySlug,
+          actionCooldownMs
+        }));
+        return;
+      }
+
+      if (route === "state") {
+        sendJson(response, normalizeDoomState(state));
+        return;
+      }
+
+      if (route.endsWith("Image")) {
+        sendSvg(response, renderDoomImage(route, normalizeDoomState(state)));
+        return;
+      }
+
+      if (DOOM_ACTION_ROUTES.has(route)) {
+        const fallbackLocation = resolveFallbackLocation(request, url, defaultRedirectUrl);
+
+        if (rateLimiter && typeof rateLimiter.consume === "function") {
+          const rateLimitResult = await rateLimiter.consume({
+            action: getActionRateLimitKey(gameSlug, route),
+            gameSlug,
+            lobbySlug,
+            clientId: getClientId(request)
+          });
+
+          if (!rateLimitResult.allowed) {
+            sendRateLimitedBounce(response, fallbackLocation, rateLimitResult.retryAfterMs || actionCooldownMs);
+            return;
+          }
+        }
+
+        await activeStateStore.mutateState((current) => applyDoomAction(current, route));
+        sendBackBounce(response, fallbackLocation);
+        return;
+      }
+    }
+
     if (route === "home") {
-      const state = await activeStateStore.getState();
-      sendHtml(response, renderHome(state, defaultRedirectUrl, gameSlug, lobbySlug, {
+      sendHtml(response, renderCookieHome(state, defaultRedirectUrl, gameSlug, lobbySlug, {
         isLegacyAlias,
         isDefaultLobbyAlias,
         actionCooldownMs
@@ -587,13 +728,11 @@ function createRequestHandler({
     }
 
     if (route === "state") {
-      const state = await activeStateStore.getState();
       sendJson(response, state);
       return;
     }
 
     if (route === "counterImage") {
-      const state = await activeStateStore.getState();
       sendSvg(response, svgStatCard({
         width: 330,
         height: 110,
@@ -606,7 +745,6 @@ function createRequestHandler({
     }
 
     if (route === "statusImage") {
-      const state = await activeStateStore.getState();
       sendSvg(response, svgStatCard({
         width: 330,
         height: 110,
@@ -619,7 +757,6 @@ function createRequestHandler({
     }
 
     if (route === "upgradeImage") {
-      const state = await activeStateStore.getState();
       sendSvg(response, svgUpgradePanel(state));
       return;
     }
@@ -629,7 +766,7 @@ function createRequestHandler({
 
       if (rateLimiter && typeof rateLimiter.consume === "function") {
         const rateLimitResult = await rateLimiter.consume({
-          action: route,
+          action: getActionRateLimitKey(gameSlug, route),
           gameSlug,
           lobbySlug,
           clientId: getClientId(request)
@@ -641,38 +778,7 @@ function createRequestHandler({
         }
       }
 
-      if (route === "click") {
-        if (typeof activeStateStore.click === "function") {
-          await activeStateStore.click();
-        } else {
-          await activeStateStore.mutateState((current) => ({
-            ...current,
-            clicks: current.clicks + current.clickPower,
-            lastLog: `Cookie clicked: +${current.clickPower}`
-          }));
-        }
-      } else if (typeof activeStateStore.upgrade === "function") {
-        await activeStateStore.upgrade();
-      } else {
-        await activeStateStore.mutateState((current) => {
-          if (current.clicks < current.upgradeCost) {
-            return {
-              ...current,
-              lastLog: `Upgrade failed: need ${current.upgradeCost - current.clicks} more`
-            };
-          }
-
-          const upgradeLevel = current.upgradeLevel + 1;
-          return {
-            ...current,
-            clicks: current.clicks - current.upgradeCost,
-            clickPower: current.clickPower + 1,
-            upgradeLevel,
-            lastLog: `Upgrade bought: clicks now give +${current.clickPower + 1}`
-          };
-        });
-      }
-
+      await runCookieAction(route, activeStateStore);
       sendBackBounce(response, fallbackLocation);
       return;
     }

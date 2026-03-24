@@ -8,6 +8,8 @@ const {
   normalizeGameSlug,
   normalizeLobbySlug
 } = require("./app");
+const { createFreshDoomState, normalizeDoomState } = require("./doom-game");
+const { createFileJsonStateStore } = require("./json-state-store");
 const { createMemoryRateLimiter, normalizeCooldownMs } = require("./rate-limiter");
 const { createFileStateStore } = require("./state-store");
 
@@ -39,9 +41,18 @@ function getStateStore(gameSlug, lobbySlug) {
   const cacheKey = `${normalizedGameSlug}:${normalizedLobbySlug}`;
 
   if (!stateStoreCache.has(cacheKey)) {
-    stateStoreCache.set(cacheKey, createFileStateStore({
-      filePath: resolveStateFilePath(normalizedGameSlug, normalizedLobbySlug)
-    }));
+    const filePath = resolveStateFilePath(normalizedGameSlug, normalizedLobbySlug);
+    const stateStore = normalizedGameSlug === "doom"
+      ? createFileJsonStateStore({
+        filePath,
+        createFreshState: createFreshDoomState,
+        normalizeState: normalizeDoomState
+      })
+      : createFileStateStore({
+        filePath
+      });
+
+    stateStoreCache.set(cacheKey, stateStore);
   }
 
   return stateStoreCache.get(cacheKey);

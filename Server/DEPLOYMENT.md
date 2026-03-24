@@ -66,6 +66,7 @@ The backend supports both of these env var pairs:
 - `ACTION_COOLDOWN_MS`
   Optional anonymous anti-spam cooldown per IP, per game, per action.
   New custom lobby creation also uses this cooldown.
+  Doom uses one shared cooldown bucket for every turn-step input.
   Default: `800`
 
 ### README usage
@@ -139,6 +140,17 @@ Useful local routes:
 - `/cookieclicker/global/images/counter.svg`
 - `/cookieclicker/my-friends/click`
 - `/cookieclicker/my-friends/images/counter.svg`
+- `/doom`
+- `/doom/global`
+- `/doom/global/api/state`
+- `/doom/global/images/view.svg`
+- `/doom/global/images/hud.svg`
+- `/doom/global/images/minimap.svg`
+- `/doom/global/forward`
+- `/doom/global/turn-left`
+- `/doom/global/shoot`
+- `/doom/my-squad/forward`
+- `/doom/my-squad/images/view.svg`
 
 Legacy aliases still work for the default game:
 
