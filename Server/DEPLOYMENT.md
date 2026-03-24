@@ -7,7 +7,7 @@
 - The README frontend can either:
   - point at the shared public backend at `https://p3cap.vercel.app`, or
   - point at your own Vercel deployment if you want your own save.
-- The cookie GIF is served by the backend at `/images/cookie.gif`, so the README does not need any local image assets.
+- The cookie GIF is served by the backend at `/cookieclicker/images/cookie.gif` for the namespaced route layout, so the README does not need any local image assets.
 
 ## GitHub
 
@@ -26,7 +26,7 @@ This project is set up so you can deploy the `Server` directory directly as a Ve
 - `Server/server.js`
   Local development server with JSON-file storage.
 - `Server/app.js`
-  Shared routes for clicks, upgrades, JSON state, SVG counters, the upgrade panel, and the hosted cookie GIF.
+  Shared routes for game-specific clicks, upgrades, JSON state, SVG counters, the upgrade panel, and the hosted cookie GIF.
 - `Server/state-store.js`
   State storage implementations for local JSON and Redis.
 
@@ -56,7 +56,10 @@ The backend supports both of these env var pairs:
   Optional fallback URL if the previous page URL is unavailable.
   Example: `https://github.com/YOUR_USERNAME`
 - `STATE_KEY`
-  Optional custom Redis key. Default: `readmeCookie:state`
+  Optional custom Redis key prefix. Default: `readmeCookie:state`
+- `DEFAULT_GAME_SLUG`
+  Optional default game slug used by `/`, `/actions/*`, and `/images/*` legacy aliases.
+  Default: `cookieclicker`
 
 ### README usage
 
@@ -108,6 +111,17 @@ Useful local routes:
 
 - `/`
 - `/api/state`
+- `/cookieclicker`
+- `/cookieclicker/api/state`
+- `/cookieclicker/click`
+- `/cookieclicker/upgrade`
+- `/cookieclicker/images/counter.svg`
+- `/cookieclicker/images/status.svg`
+- `/cookieclicker/images/upgrade-button.svg`
+- `/cookieclicker/images/cookie.gif`
+
+Legacy aliases still work for the default game:
+
 - `/actions/click`
 - `/actions/upgrade`
 - `/images/counter.svg`

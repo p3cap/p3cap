@@ -1,5 +1,5 @@
 const { Redis } = require("@upstash/redis");
-const { createRequestHandler } = require("./app");
+const { createRequestHandler, DEFAULT_GAME_SLUG, normalizeGameSlug } = require("./app");
 const { createRedisStateStore } = require("./state-store");
 
 let cachedHandler = null;
@@ -20,14 +20,32 @@ function getHandler() {
     return cachedHandler;
   }
 
-  const stateStore = createRedisStateStore({
-    redis: getRedisClient(),
-    key: process.env.STATE_KEY || "readmeCookie:state"
-  });
+  const redis = getRedisClient();
+  const defaultGameSlug = normalizeGameSlug(process.env.DEFAULT_GAME_SLUG) || DEFAULT_GAME_SLUG;
+  const baseStateKey = process.env.STATE_KEY || "readmeCookie:state";
+  const stateStoreCache = new Map();
+
+  function getStateStore(gameSlug) {
+    const normalizedGameSlug = normalizeGameSlug(gameSlug) || defaultGameSlug;
+
+    if (!stateStoreCache.has(normalizedGameSlug)) {
+      const stateKey = normalizedGameSlug === defaultGameSlug
+        ? baseStateKey
+        : `${baseStateKey}:${normalizedGameSlug}`;
+
+      stateStoreCache.set(normalizedGameSlug, createRedisStateStore({
+        redis,
+        key: stateKey
+      }));
+    }
+
+    return stateStoreCache.get(normalizedGameSlug);
+  }
 
   cachedHandler = createRequestHandler({
-    stateStore,
-    defaultRedirectUrl: process.env.README_REDIRECT_URL || ""
+    getStateStore,
+    defaultRedirectUrl: process.env.README_REDIRECT_URL || "",
+    defaultGameSlug
   });
 
   return cachedHandler;

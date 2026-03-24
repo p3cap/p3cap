@@ -3,6 +3,48 @@ const path = require("path");
 
 const formatter = new Intl.NumberFormat("en-US");
 const COOKIE_IMAGE_PATH = path.join(__dirname, "assets", "cookie.gif");
+const DEFAULT_GAME_SLUG = "cookieclicker";
+
+const LEGACY_ROUTE_MAP = new Map([
+  ["/", "home"],
+  ["/api/state", "state"],
+  ["/images/cookie.gif", "cookieImage"],
+  ["/images/counter.svg", "counterImage"],
+  ["/images/status.svg", "statusImage"],
+  ["/images/upgrade-button.svg", "upgradeImage"],
+  ["/actions/click", "click"],
+  ["/actions/upgrade", "upgrade"]
+]);
+
+const GAME_ROUTE_MAP = new Map([
+  ["api/state", "state"],
+  ["images/cookie.gif", "cookieImage"],
+  ["images/counter.svg", "counterImage"],
+  ["images/status.svg", "statusImage"],
+  ["images/upgrade-button.svg", "upgradeImage"],
+  ["click", "click"],
+  ["upgrade", "upgrade"],
+  ["actions/click", "click"],
+  ["actions/upgrade", "upgrade"]
+]);
+
+function normalizeGameSlug(candidate) {
+  const value = String(candidate || "").trim().toLowerCase();
+
+  if (!value || !/^[a-z0-9-]+$/.test(value)) {
+    return "";
+  }
+
+  return value;
+}
+
+function formatGameLabel(gameSlug) {
+  return gameSlug
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
 
 function formatExactNumber(value) {
   return formatter.format(Math.max(0, Math.floor(value)));
@@ -39,6 +81,54 @@ function escapeXml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;");
+}
+
+function buildGamePath(gameSlug, suffix = "") {
+  return `/${gameSlug}${suffix}`;
+}
+
+function resolveRoute(pathname, defaultGameSlug) {
+  if (LEGACY_ROUTE_MAP.has(pathname)) {
+    return {
+      gameSlug: defaultGameSlug,
+      route: LEGACY_ROUTE_MAP.get(pathname),
+      isLegacyAlias: pathname !== "/"
+    };
+  }
+
+  const segments = pathname.split("/").filter(Boolean);
+
+  if (segments.length === 0) {
+    return {
+      gameSlug: defaultGameSlug,
+      route: "home",
+      isLegacyAlias: false
+    };
+  }
+
+  const gameSlug = normalizeGameSlug(segments[0]);
+  if (!gameSlug) {
+    return null;
+  }
+
+  if (segments.length === 1) {
+    return {
+      gameSlug,
+      route: "home",
+      isLegacyAlias: false
+    };
+  }
+
+  const route = GAME_ROUTE_MAP.get(segments.slice(1).join("/"));
+  if (!route) {
+    return null;
+  }
+
+  return {
+    gameSlug,
+    route,
+    isLegacyAlias: false
+  };
 }
 
 function summarizeLastLog(message) {
@@ -221,17 +311,22 @@ function getRequestUrl(request) {
   return new URL(requestUrl, `${protocol}://${host}`);
 }
 
-function renderHome(state, defaultRedirectUrl) {
+function renderHome(state, defaultRedirectUrl, gameSlug, isLegacyAlias) {
+  const gameLabel = formatGameLabel(gameSlug);
   const hint = defaultRedirectUrl
     ? `Default redirect: <code>${escapeXml(defaultRedirectUrl)}</code>`
     : "Set README_REDIRECT_URL to make action routes bounce back to GitHub automatically.";
+  const canonicalBasePath = buildGamePath(gameSlug);
+  const aliasHint = isLegacyAlias
+    ? `<p><strong>Canonical game path:</strong> <code>${escapeXml(canonicalBasePath)}</code></p>`
+    : "";
 
   return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>README Cookie Backend</title>
+    <title>${escapeXml(gameLabel)} Backend</title>
     <style>
       :root {
         color-scheme: dark;
@@ -265,22 +360,30 @@ function renderHome(state, defaultRedirectUrl) {
   </head>
   <body>
     <main>
-      <h1>README Cookie Backend</h1>
-      <p>This server powers an interactive GitHub README by storing clicks, serving dynamic SVGs, and redirecting back to GitHub after every action.</p>
+      <h1>${escapeXml(gameLabel)} Backend</h1>
+      <p>This server powers interactive GitHub README games by storing state, serving dynamic SVGs, and redirecting back to GitHub after every action.</p>
+      <p><strong>Game slug:</strong> <code>${escapeXml(gameSlug)}</code></p>
       <p><strong>Clicks:</strong> ${escapeXml(formatExactNumber(state.clicks))} (${escapeXml(formatCompactNumber(state.clicks))})</p>
       <p><strong>Power:</strong> +${escapeXml(formatExactNumber(state.clickPower))} per click (${escapeXml(formatCompactNumber(state.clickPower))})</p>
       <p><strong>Next upgrade:</strong> ${escapeXml(formatExactNumber(state.upgradeCost))} (${escapeXml(formatCompactNumber(state.upgradeCost))})</p>
       <p><strong>Last log:</strong> ${escapeXml(state.lastLog)}</p>
       <p>${hint}</p>
-      <p>Endpoints: <code>/actions/click</code>, <code>/actions/upgrade</code>, <code>/images/counter.svg</code>, <code>/images/status.svg</code>, <code>/images/upgrade-button.svg</code>.</p>
+      ${aliasHint}
+      <p>Endpoints: <code>${escapeXml(buildGamePath(gameSlug, "/click"))}</code>, <code>${escapeXml(buildGamePath(gameSlug, "/upgrade"))}</code>, <code>${escapeXml(buildGamePath(gameSlug, "/images/counter.svg"))}</code>, <code>${escapeXml(buildGamePath(gameSlug, "/images/status.svg"))}</code>, <code>${escapeXml(buildGamePath(gameSlug, "/images/upgrade-button.svg"))}</code>.</p>
     </main>
   </body>
 </html>`;
 }
 
-function createRequestHandler({ stateStore, defaultRedirectUrl = "" }) {
+function createRequestHandler({ stateStore, getStateStore, defaultRedirectUrl = "", defaultGameSlug = DEFAULT_GAME_SLUG }) {
+  const normalizedDefaultGameSlug = normalizeGameSlug(defaultGameSlug) || DEFAULT_GAME_SLUG;
+  const resolveStateStore = typeof getStateStore === "function"
+    ? (gameSlug) => Promise.resolve(getStateStore(gameSlug))
+    : () => Promise.resolve(stateStore);
+
   return async function handleRequest(request, response) {
     const url = getRequestUrl(request);
+    const resolvedRoute = resolveRoute(url.pathname, normalizedDefaultGameSlug);
 
     if (request.method !== "GET") {
       response.writeHead(405, { "Content-Type": "text/plain; charset=utf-8" });
@@ -288,25 +391,38 @@ function createRequestHandler({ stateStore, defaultRedirectUrl = "" }) {
       return;
     }
 
-    if (url.pathname === "/") {
-      const state = await stateStore.getState();
-      sendHtml(response, renderHome(state, defaultRedirectUrl));
+    if (!resolvedRoute) {
+      response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+      response.end("Not Found");
       return;
     }
 
-    if (url.pathname === "/api/state") {
-      const state = await stateStore.getState();
-      sendJson(response, state);
-      return;
-    }
+    const { gameSlug, route, isLegacyAlias } = resolvedRoute;
 
-    if (url.pathname === "/images/cookie.gif") {
+    if (route === "cookieImage") {
       sendGif(response, fs.readFileSync(COOKIE_IMAGE_PATH));
       return;
     }
 
-    if (url.pathname === "/images/counter.svg") {
-      const state = await stateStore.getState();
+    const activeStateStore = await resolveStateStore(gameSlug);
+    if (!activeStateStore || typeof activeStateStore.getState !== "function") {
+      throw new Error(`Missing state store for game "${gameSlug}"`);
+    }
+
+    if (route === "home") {
+      const state = await activeStateStore.getState();
+      sendHtml(response, renderHome(state, defaultRedirectUrl, gameSlug, isLegacyAlias));
+      return;
+    }
+
+    if (route === "state") {
+      const state = await activeStateStore.getState();
+      sendJson(response, state);
+      return;
+    }
+
+    if (route === "counterImage") {
+      const state = await activeStateStore.getState();
       sendSvg(response, svgStatCard({
         width: 330,
         height: 110,
@@ -318,8 +434,8 @@ function createRequestHandler({ stateStore, defaultRedirectUrl = "" }) {
       return;
     }
 
-    if (url.pathname === "/images/status.svg") {
-      const state = await stateStore.getState();
+    if (route === "statusImage") {
+      const state = await activeStateStore.getState();
       sendSvg(response, svgStatCard({
         width: 330,
         height: 110,
@@ -331,17 +447,17 @@ function createRequestHandler({ stateStore, defaultRedirectUrl = "" }) {
       return;
     }
 
-    if (url.pathname === "/images/upgrade-button.svg") {
-      const state = await stateStore.getState();
+    if (route === "upgradeImage") {
+      const state = await activeStateStore.getState();
       sendSvg(response, svgUpgradePanel(state));
       return;
     }
 
-    if (url.pathname === "/actions/click") {
-      if (typeof stateStore.click === "function") {
-        await stateStore.click();
+    if (route === "click") {
+      if (typeof activeStateStore.click === "function") {
+        await activeStateStore.click();
       } else {
-        await stateStore.mutateState((current) => ({
+        await activeStateStore.mutateState((current) => ({
           ...current,
           clicks: current.clicks + current.clickPower,
           lastLog: `Cookie clicked: +${current.clickPower}`
@@ -352,11 +468,11 @@ function createRequestHandler({ stateStore, defaultRedirectUrl = "" }) {
       return;
     }
 
-    if (url.pathname === "/actions/upgrade") {
-      if (typeof stateStore.upgrade === "function") {
-        await stateStore.upgrade();
+    if (route === "upgrade") {
+      if (typeof activeStateStore.upgrade === "function") {
+        await activeStateStore.upgrade();
       } else {
-        await stateStore.mutateState((current) => {
+        await activeStateStore.mutateState((current) => {
           if (current.clicks < current.upgradeCost) {
             return {
               ...current,
@@ -385,5 +501,7 @@ function createRequestHandler({ stateStore, defaultRedirectUrl = "" }) {
 }
 
 module.exports = {
-  createRequestHandler
+  createRequestHandler,
+  DEFAULT_GAME_SLUG,
+  normalizeGameSlug
 };

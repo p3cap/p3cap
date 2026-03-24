@@ -5,8 +5,8 @@
 </div>
 
 <p align="center">
-  <img src="https://p3cap.vercel.app/images/counter.svg" alt="Cookie counter" width="320" />
-  <img src="https://p3cap.vercel.app/images/status.svg" alt="Clicks per tap counter" width="320" />
+  <img src="https://p3cap.vercel.app/cookieclicker/images/counter.svg" alt="Cookie counter" width="320" />
+  <img src="https://p3cap.vercel.app/cookieclicker/images/status.svg" alt="Clicks per tap counter" width="320" />
 </p>
 
 <p align="center">
@@ -14,11 +14,11 @@
 </p>
 
 <p align="center" valign="center">
-  <a href="https://p3cap.vercel.app/actions/click?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-    <img src="https://p3cap.vercel.app/images/cookie.gif" width="420" alt="Tap the cookie" />
+  <a href="https://p3cap.vercel.app/cookieclicker/click?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
+    <img src="https://p3cap.vercel.app/cookieclicker/images/cookie.gif" width="420" alt="Tap the cookie" />
   </a>
-  <a href="https://p3cap.vercel.app/actions/upgrade?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-    <img src="https://p3cap.vercel.app/images/upgrade-button.svg" alt="Upgrade sidebar" width="280" height="420" />
+  <a href="https://p3cap.vercel.app/cookieclicker/upgrade?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
+    <img src="https://p3cap.vercel.app/cookieclicker/images/upgrade-button.svg" alt="Upgrade sidebar" width="280" height="420" />
   </a>
 </p>
 
