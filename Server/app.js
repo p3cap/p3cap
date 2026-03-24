@@ -290,10 +290,7 @@ function sendSvg(response, svg) {
     "Content-Type": "image/svg+xml; charset=utf-8",
     "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
     Pragma: "no-cache",
-    Expires: "0",
-    "Surrogate-Control": "no-store",
-    "CDN-Cache-Control": "no-store",
-    "Vercel-CDN-Cache-Control": "no-store"
+    Expires: "0"
   });
   response.end(svg);
 }
