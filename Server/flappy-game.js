@@ -6,9 +6,12 @@ const IDEAL_TAP_MS = 1150;
 const PERFECT_WINDOW_MS = 120;
 const GOOD_WINDOW_MS = 260;
 const MAX_WINDOW_MS = 460;
-const LANE_Y = [66, 112, 158];
-const GAP_TOP_BY_LANE = [34, 80, 126];
-const GAP_HEIGHT = 54;
+const LANE_Y = [44, 72, 100, 128, 156];
+const GAP_HEIGHT = 64;
+const PIPE_WIDTH = 74;
+const PIPE_HEAD_WIDTH = 90;
+const PIPE_START_X = 520;
+const PIPE_EXIT_X = -94;
 
 const routeMap = new Map([
   ["api/state", "state"],
@@ -60,8 +63,20 @@ function buildLobbyPath(gameSlug, lobbySlug, suffix = "") {
   return `/${gameSlug}/${lobbySlug}${suffix}`;
 }
 
-function getGapLane(state) {
-  return hashString(`${state.seed}:${state.obstacleIndex}`) % 3;
+function getGapLane(seed, obstacleIndex) {
+  return hashString(`${seed}:${obstacleIndex}:lane`) % LANE_Y.length;
+}
+
+function getGapTop(seed, obstacleIndex) {
+  const lane = getGapLane(seed, obstacleIndex);
+  return {
+    lane,
+    top: 18 + (lane * 28)
+  };
+}
+
+function getIdleLane(birdLane) {
+  return Math.min(LANE_Y.length - 1, birdLane + 1);
 }
 
 function createFreshState(overrides = {}) {
@@ -69,10 +84,13 @@ function createFreshState(overrides = {}) {
     alive: true,
     score: 0,
     bestScore: 0,
-    birdLane: 1,
+    birdLane: 2,
+    previousBirdLane: 2,
     obstacleIndex: 0,
     seed: createRandomSeed(),
     cycleStartedAt: new Date().toISOString(),
+    animationMode: "idle",
+    lastPassedGapLane: -1,
     lastTapErrorMs: 0,
     lastLog: "Tap as the pipe reaches the marker.",
     updatedAt: new Date().toISOString(),
@@ -87,12 +105,15 @@ function normalizeState(state) {
     alive: source.alive !== false,
     score: clampNumber(source.score, 0, 0, 999999),
     bestScore: clampNumber(source.bestScore, 0, 0, 999999),
-    birdLane: clampNumber(source.birdLane, 1, 0, 2),
+    birdLane: clampNumber(source.birdLane, 2, 0, LANE_Y.length - 1),
+    previousBirdLane: clampNumber(source.previousBirdLane, source.birdLane, 0, LANE_Y.length - 1),
     obstacleIndex: clampNumber(source.obstacleIndex, 0, 0, 999999),
     seed: clampNumber(source.seed, mixSeed("flappy", source.score || 0, source.obstacleIndex || 0), 1, 2147483646),
     cycleStartedAt: typeof source.cycleStartedAt === "string" && source.cycleStartedAt.trim()
       ? source.cycleStartedAt.trim()
       : new Date().toISOString(),
+    animationMode: source.animationMode === "flap" ? "flap" : "idle",
+    lastPassedGapLane: clampNumber(source.lastPassedGapLane, -1, -1, LANE_Y.length - 1),
     lastTapErrorMs: clampNumber(source.lastTapErrorMs, 0, -9999, 9999),
     lastLog: typeof source.lastLog === "string" && source.lastLog.trim()
       ? source.lastLog.trim()
@@ -154,7 +175,7 @@ function renderHome(rawState, { defaultRedirectUrl = "", gameSlug, lobbySlug, ac
       <h1>README Flappy</h1>
       <p>Animated-image timing game for <code>${escapeXml(gameSlug)}</code> / <code>${escapeXml(lobbySlug)}</code>.</p>
       <p><strong>Alive:</strong> ${escapeXml(state.alive ? "yes" : "no")} | <strong>Score:</strong> ${escapeXml(String(state.score))} | <strong>Best:</strong> ${escapeXml(String(state.bestScore))}</p>
-      <p><strong>Bird lane:</strong> ${escapeXml(String(state.birdLane + 1))} | <strong>Last timing noise:</strong> ${escapeXml(`${state.lastTapErrorMs}ms`)}</p>
+      <p><strong>Bird lane:</strong> ${escapeXml(String(state.birdLane + 1))} | <strong>Animation:</strong> ${escapeXml(state.animationMode)} | <strong>Last timing noise:</strong> ${escapeXml(`${state.lastTapErrorMs}ms`)}</p>
       <p><strong>Last log:</strong> ${escapeXml(state.lastLog)}</p>
       <p>${hint}</p>
       <p><strong>Anti-spam:</strong> about one action every ${(actionCooldownMs / 1000).toFixed(actionCooldownMs < 1000 ? 1 : 0)}s per IP, per game.</p>
@@ -200,15 +221,18 @@ function applyTap(rawState) {
   }
 
   const timing = resolveTapTiming(nowMs, state);
-  const gapLane = getGapLane(state);
-  const nextBirdLane = Math.max(0, Math.min(2, state.birdLane + 1 - timing.flapStrength));
+  const gapLane = getGapLane(state.seed, state.obstacleIndex);
+  const idleLane = getIdleLane(state.birdLane);
+  const nextBirdLane = Math.max(0, Math.min(LANE_Y.length - 1, idleLane - timing.flapStrength));
 
   if (timing.missedWindow || nextBirdLane !== gapLane) {
     return {
       ...state,
       alive: false,
       birdLane: nextBirdLane,
+      previousBirdLane: state.birdLane,
       bestScore: Math.max(state.bestScore, state.score),
+      animationMode: "idle",
       lastTapErrorMs: timing.noise,
       lastLog: timing.missedWindow
         ? "Missed the timing window. Tap again to restart."
@@ -223,8 +247,11 @@ function applyTap(rawState) {
     score: nextScore,
     bestScore: Math.max(state.bestScore, nextScore),
     birdLane: nextBirdLane,
+    previousBirdLane: state.birdLane,
     obstacleIndex: state.obstacleIndex + 1,
     cycleStartedAt: new Date(nowMs).toISOString(),
+    animationMode: "flap",
+    lastPassedGapLane: gapLane,
     lastTapErrorMs: timing.noise,
     lastLog: timing.flapStrength === 2
       ? "Perfect flap."
@@ -232,16 +259,49 @@ function applyTap(rawState) {
   };
 }
 
-function renderBird(state) {
-  const birdY = LANE_Y[state.birdLane];
+function renderBird(state, fromLane, toLane, durationMs) {
+  const startY = LANE_Y[fromLane];
+  const endY = LANE_Y[toLane];
   return `
-  <g transform="translate(138 ${birdY - 14})">
+  <g transform="translate(138 ${startY - 14})">
+    <animateTransform attributeName="transform" type="translate" values="138 ${startY - 14};138 ${endY - 14};138 ${endY - 14}" keyTimes="0;0.36;1" dur="${durationMs}ms" fill="freeze" />
     <ellipse cx="20" cy="16" rx="20" ry="14" fill="#facc15" />
     <ellipse cx="14" cy="13" rx="4" ry="4" fill="#111827" />
     <polygon points="34,16 48,12 48,20" fill="#fb923c" />
     <ellipse cx="20" cy="18" rx="10" ry="6" fill="#f59e0b">
       <animate attributeName="ry" values="6;2;6" dur="0.22s" repeatCount="indefinite" />
     </ellipse>
+  </g>`;
+}
+
+function renderPipe(gapTop, fromX, toX, durationMs, begin = "0s") {
+  const bottomPipeY = gapTop + GAP_HEIGHT;
+  const bottomPipeHeight = 188 - bottomPipeY;
+
+  return `
+  <g>
+    <rect x="${fromX}" y="0" width="${PIPE_WIDTH}" height="${gapTop}" fill="#22c55e">
+      <animate attributeName="x" from="${fromX}" to="${toX}" dur="${durationMs}ms" begin="${begin}" fill="freeze" />
+    </rect>
+    <rect x="${fromX - 8}" y="${gapTop - 14}" width="${PIPE_HEAD_WIDTH}" height="14" fill="#15803d">
+      <animate attributeName="x" from="${fromX - 8}" to="${toX - 8}" dur="${durationMs}ms" begin="${begin}" fill="freeze" />
+    </rect>
+    <rect x="${fromX}" y="${bottomPipeY}" width="${PIPE_WIDTH}" height="${bottomPipeHeight}" fill="#22c55e">
+      <animate attributeName="x" from="${fromX}" to="${toX}" dur="${durationMs}ms" begin="${begin}" fill="freeze" />
+    </rect>
+    <rect x="${fromX - 8}" y="${bottomPipeY}" width="${PIPE_HEAD_WIDTH}" height="14" fill="#15803d">
+      <animate attributeName="x" from="${fromX - 8}" to="${toX - 8}" dur="${durationMs}ms" begin="${begin}" fill="freeze" />
+    </rect>
+  </g>`;
+}
+
+function renderDeathOverlay(beginMs) {
+  return `
+  <g opacity="0">
+    <animate attributeName="opacity" values="0;0;1" keyTimes="0;0.86;1" dur="${CYCLE_MS}ms" fill="freeze" />
+    <rect x="0" y="0" width="620" height="260" fill="#020617" fill-opacity="0.78" />
+    <text x="310" y="108" text-anchor="middle" fill="#f8fafc" font-size="34" font-family="'Trebuchet MS', Arial, sans-serif">You deid</text>
+    <text x="310" y="138" text-anchor="middle" fill="#93c5fd" font-size="16" font-family="'Trebuchet MS', Arial, sans-serif">press flap to start a new game</text>
   </g>`;
 }
 
@@ -257,10 +317,14 @@ function renderViewSvg(rawState) {
 </svg>`;
   }
 
-  const gapLane = getGapLane(state);
-  const gapTop = GAP_TOP_BY_LANE[gapLane];
-  const bottomPipeY = gapTop + GAP_HEIGHT;
-  const bottomPipeHeight = 188 - bottomPipeY;
+  const upcomingGap = getGapTop(state.seed, state.obstacleIndex);
+  const idleLane = getIdleLane(state.birdLane);
+  const predictedCrash = idleLane !== upcomingGap.lane;
+  const birdFromLane = state.animationMode === "flap" ? state.previousBirdLane : state.birdLane;
+  const birdToLane = state.animationMode === "flap" ? state.birdLane : idleLane;
+  const flapPipe = state.animationMode === "flap" && state.lastPassedGapLane >= 0
+    ? getGapTop(state.seed, Math.max(0, state.obstacleIndex - 1))
+    : null;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="620" height="260" viewBox="0 0 620 260" role="img" aria-label="README Flappy animated game screen">
@@ -269,25 +333,14 @@ function renderViewSvg(rawState) {
   <rect y="204" width="620" height="56" fill="#15803d" />
   <line x1="180" y1="28" x2="180" y2="188" stroke="#ffffff" stroke-opacity="0.35" stroke-dasharray="6 6" />
   <text x="180" y="22" text-anchor="middle" fill="#f8fafc" font-size="12" font-family="'Trebuchet MS', Arial, sans-serif">TAP LINE</text>
-  ${renderBird(state)}
-  <g>
-    <rect x="520" y="0" width="74" height="${gapTop}" fill="#22c55e">
-      <animate attributeName="x" from="520" to="-94" dur="${CYCLE_MS}ms" repeatCount="indefinite" />
-    </rect>
-    <rect x="512" y="${gapTop - 14}" width="90" height="14" fill="#15803d">
-      <animate attributeName="x" from="512" to="-102" dur="${CYCLE_MS}ms" repeatCount="indefinite" />
-    </rect>
-    <rect x="520" y="${bottomPipeY}" width="74" height="${bottomPipeHeight}" fill="#22c55e">
-      <animate attributeName="x" from="520" to="-94" dur="${CYCLE_MS}ms" repeatCount="indefinite" />
-    </rect>
-    <rect x="512" y="${bottomPipeY}" width="90" height="14" fill="#15803d">
-      <animate attributeName="x" from="512" to="-102" dur="${CYCLE_MS}ms" repeatCount="indefinite" />
-    </rect>
-  </g>
+  ${flapPipe ? renderPipe(flapPipe.top, 184, -180, 900, "0s") : ""}
+  ${renderPipe(upcomingGap.top, PIPE_START_X, PIPE_EXIT_X, CYCLE_MS, "0s")}
+  ${renderBird(state, birdFromLane, birdToLane, CYCLE_MS)}
   <text x="18" y="26" fill="#082f49" font-size="20" font-family="'Trebuchet MS', Arial, sans-serif">README-FLAPPY</text>
   <text x="18" y="50" fill="#082f49" font-size="15" font-family="'Trebuchet MS', Arial, sans-serif">score ${escapeXml(String(state.score))} | best ${escapeXml(String(state.bestScore))}</text>
   <text x="18" y="72" fill="#082f49" font-size="13" font-family="'Trebuchet MS', Arial, sans-serif">${escapeXml(state.lastLog)}</text>
-  <text x="18" y="92" fill="#082f49" font-size="12" font-family="'Trebuchet MS', Arial, sans-serif">timed flap + noise ${escapeXml(`${state.lastTapErrorMs}ms`)}</text>
+  <text x="18" y="92" fill="#082f49" font-size="12" font-family="'Trebuchet MS', Arial, sans-serif">timed flap + noise ${escapeXml(`${state.lastTapErrorMs}ms`)} | next gap ${escapeXml(String(upcomingGap.lane + 1))}</text>
+  ${predictedCrash ? renderDeathOverlay(CYCLE_MS) : ""}
 </svg>`;
 }
 

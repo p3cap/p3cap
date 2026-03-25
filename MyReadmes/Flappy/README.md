@@ -19,8 +19,9 @@
 
 - The pipe animation restarts after every redirect, so the timing window is roughly synced to what you see.
 - Your tap is judged against a narrow flap window with a small built-in error rate.
-- Good timing keeps the run alive and advances the score.
-- A miss kills the run, and the same button starts a fresh game.
+- The current cycle now previews the outcome: if you do nothing and the bird would hit the pipe, the SVG ends on `You deid`.
+- Good timing carries the flap into the next generated cycle and advances the score.
+- Pipe heights are randomized per cycle, and the same button starts a fresh game after a crash.
 
 </details>
 
