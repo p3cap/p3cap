@@ -1,47 +1,120 @@
 <div align="center">
-  <h1>Cookie Clicker README</h1>
-  <p>A <b>global game</b> on your profile README.</p>
-  <sub>(Recommended desktop view from phone.)</sub>
+
+<pre>
+██████╗  ██████╗  ██████╗ ███╗   ███╗
+██╔══██╗██╔═══██╗██╔═══██╗████╗ ████║
+██║  ██║██║   ██║██║   ██║██╔████╔██║
+██║  ██║██║   ██║██║   ██║██║╚██╔╝██║
+██████╔╝╚██████╔╝╚██████╔╝██║ ╚═╝ ██║
+╚═════╝  ╚═════╝  ╚═════╝ ╚═╝     ╚═╝
+</pre>
+
+<h3>Primitive README FPS</h3>
+<p>Chunky pixels, flat walls, one action at a time.</p>
+<sub>Every button press advances the world exactly one step. Enemies only move after you do.</sub>
+
 </div>
 
 <p align="center">
-  <img src="https://p3cap.vercel.app/cookieclicker/images/counter.svg" alt="Cookie counter" width="320" />
-  <img src="https://p3cap.vercel.app/cookieclicker/images/status.svg" alt="Clicks per tap counter" width="320" />
+  <img src="https://p3cap.vercel.app/doom/global/images/view.svg" alt="Retro first-person game viewport" width="720" />
 </p>
 
 <p align="center">
-  <sub><strong>TAP THE COOKIE</strong> to earn cookies, then buy upgrades on the right.</sub>
+  <img src="https://p3cap.vercel.app/doom/global/images/hud.svg" alt="Ammo, health, score, and dungeon floor HUD" width="720" />
 </p>
 
-<p align="center" valign="center">
-  <a href="https://p3cap.vercel.app/cookieclicker/click?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-    <img src="https://p3cap.vercel.app/cookieclicker/images/cookie.gif" width="420" alt="Tap the cookie" />
-  </a>
-  <a href="https://p3cap.vercel.app/cookieclicker/upgrade?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-    <img src="https://p3cap.vercel.app/cookieclicker/images/upgrade-button.svg" alt="Upgrade sidebar" width="280" height="420" />
-  </a>
+<p align="center">
+  <sub><strong>Step Mode:</strong> no real-time simulation, no auto-movement, no hidden ticks between clicks.</sub>
+</p>
+
+<table align="center">
+  <tr>
+    <td></td>
+    <td align="center">
+      <a href="https://p3cap.vercel.app/doom/global/forward?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
+        <img src="https://p3cap.vercel.app/doom/global/images/button-forward.svg" alt="Move forward one tile" width="150" />
+      </a>
+    </td>
+    <td></td>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="https://p3cap.vercel.app/doom/global/turn-left?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
+        <img src="https://p3cap.vercel.app/doom/global/images/button-turn-left.svg" alt="Turn left" width="150" />
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://p3cap.vercel.app/doom/global/shoot?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
+        <img src="https://p3cap.vercel.app/doom/global/images/button-shoot.svg" alt="Shoot straight ahead" width="150" />
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://p3cap.vercel.app/doom/global/turn-right?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
+        <img src="https://p3cap.vercel.app/doom/global/images/button-turn-right.svg" alt="Turn right" width="150" />
+      </a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="https://p3cap.vercel.app/doom/global/strafe-left?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
+        <img src="https://p3cap.vercel.app/doom/global/images/button-strafe-left.svg" alt="Step left" width="150" />
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://p3cap.vercel.app/doom/global/wait?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
+        <img src="https://p3cap.vercel.app/doom/global/images/button-wait.svg" alt="Wait one step" width="150" />
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://p3cap.vercel.app/doom/global/strafe-right?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
+        <img src="https://p3cap.vercel.app/doom/global/images/button-strafe-right.svg" alt="Step right" width="150" />
+      </a>
+    </td>
+  </tr>
+  <tr>
+    <td></td>
+    <td align="center">
+      <a href="https://p3cap.vercel.app/doom/global/backward?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
+        <img src="https://p3cap.vercel.app/doom/global/images/button-backward.svg" alt="Move backward one tile" width="150" />
+      </a>
+    </td>
+    <td></td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="https://p3cap.vercel.app/doom/global/images/minimap.svg" alt="Grid-based dungeon minimap" width="320" />
 </p>
 
 <details>
-<summary>How to add this to your profile?</summary>
+<summary>How this game works</summary>
 
-1. Create a public repository named exactly like your GitHub username so GitHub shows its `README.md` on your profile.
-2. Copy this `README.md` file into your repo.
-3. Replace `?redirect=https%3A%2F%2Fgithub.com%2Fp3cap` part after links with `?redirect=https%3A%2F%2Fgithub.com%2F<YOUR_USER_NAME>`
-4. Optional: create your own lobby by inserting a lobby ID after `cookieclicker/` in every backend URL, for example `https://p3cap.vercel.app/cookieclicker/my-friends/click`.
-5. Cutomize your `README.md` if you want to (just keep my name on it pls).
-6. Commit and push the repository to GitHub.
-7. Refresh your profile page and the game will appear there.
-<sub>Got stuck? Contact <a src="https://github.com/p3cap">me</a>.</sub>
+- The game is a tiny turn-based corridor crawler dressed up like a 1990s shooter.
+- Every click performs exactly one deterministic action: move, turn, strafe, shoot, or wait.
+- After your action resolves, the world advances one step and enemies take theirs.
+- The viewport should stay low-resolution, blocky, and fake-3D, like an old DOS-era engine.
+- The lobby lives in the URL, so `doom/global` and `doom/my-squad` are separate runs.
 
 </details>
 
 <details>
-<summary>How it works?</summary>
+<summary>How to make your own lobby</summary>
 
-- When you click the cookie or upgrade, you open the Vercel-hosted server.
-- The server updates the selected game + lobby state, then redirects you back to `https://github.com/p3cap`.
-- Then the images get requested again when the page loads.
+1. Copy this `README.md` into your profile repo.
+2. Replace `?redirect=https%3A%2F%2Fgithub.com%2Fp3cap` with your own GitHub profile URL.
+3. Change every `/doom/global/` segment to something like `/doom/my-lobby/`.
+4. Push the README and open your GitHub profile.
+
+</details>
+
+<details>
+<summary>Current ruleset</summary>
+
+- The player acts on a small grid with four facing directions.
+- The screen render is state-based, not animated, and updates only after a button press.
+- Enemies are sprite-based and move in simple deterministic patterns.
+- Shooting checks the tiles in front of the player until a wall blocks the shot.
+- Ammo, health, keys, score, and floor number belong in the HUD.
 
 </details>
 
