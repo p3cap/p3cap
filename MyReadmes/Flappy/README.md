@@ -22,7 +22,7 @@
 - The current cycle now previews the outcome: if you do nothing and the bird would hit the pipe, the SVG ends on `You deid`.
 - Good timing carries the flap into the next generated cycle and advances the score.
 - Pipe heights are randomized per cycle, and the same button starts a fresh game after a crash.
-- The dashed line shows the predicted no-click path across the current preview.
+- If the current no-click path survives, the next pipe is previewed too.
 
 </details>
 
@@ -39,6 +39,6 @@
 <summary>Bird assets</summary>
 
 - You can drop `bird.png`, `bird.svg`, or another supported `bird.*` file into `Server/assets/flappy/`.
-- The bird now renders as an image asset, not a drawn vector blob.
+- The bird now renders only from an asset in `Server/assets/flappy/`.
 
 </details>

@@ -15,7 +15,6 @@ const PIPE_HEAD_WIDTH = 90;
 const PIPE_START_X = 520;
 const PIPE_EXIT_X = -94;
 const BIRD_TEXTURE_DIR = path.join(__dirname, "assets", "flappy");
-const SUPPORTED_TEXTURE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"];
 const birdTextureCache = new Map();
 
 const routeMap = new Map([
@@ -68,10 +67,6 @@ function buildLobbyPath(gameSlug, lobbySlug, suffix = "") {
   return `/${gameSlug}/${lobbySlug}${suffix}`;
 }
 
-function svgDataUri(svgMarkup) {
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgMarkup)}`;
-}
-
 function getMimeTypeForTexture(fileName) {
   const extension = path.extname(fileName).toLowerCase();
   if (extension === ".png") {
@@ -91,19 +86,6 @@ function getMimeTypeForTexture(fileName) {
   }
 
   return "";
-}
-
-function createBuiltInBirdTexture() {
-  return svgDataUri(`<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="56" height="40" viewBox="0 0 56 40" shape-rendering="crispEdges">
-  <rect width="56" height="40" fill="transparent" />
-  <rect x="8" y="10" width="28" height="18" fill="#facc15" />
-  <rect x="32" y="14" width="10" height="10" fill="#fde047" />
-  <rect x="38" y="16" width="10" height="6" fill="#fb923c" />
-  <rect x="16" y="6" width="8" height="6" fill="#f59e0b" />
-  <rect x="20" y="14" width="4" height="4" fill="#111827" />
-  <rect x="4" y="16" width="8" height="6" fill="#f59e0b" />
-</svg>`);
 }
 
 function getBirdTextureUri() {
@@ -132,10 +114,6 @@ function getBirdTextureUri() {
     }
   } catch (error) {
     textureUri = "";
-  }
-
-  if (!textureUri) {
-    textureUri = createBuiltInBirdTexture();
   }
 
   birdTextureCache.set("bird", textureUri);
@@ -371,6 +349,11 @@ function renderBird(state, fromLane, toLane, durationMs) {
   const startY = LANE_Y[fromLane];
   const endY = LANE_Y[toLane];
   const birdTexture = getBirdTextureUri();
+
+  if (!birdTexture) {
+    return "";
+  }
+
   return `
   <g transform="translate(138 ${startY - 14})">
     <animateTransform attributeName="transform" type="translate" values="138 ${startY - 14};138 ${endY - 14};138 ${endY - 14}" keyTimes="0;0.36;1" dur="${durationMs}ms" fill="freeze" />
@@ -399,10 +382,10 @@ function renderPipe(gapTop, fromX, toX, durationMs, begin = "0s") {
   </g>`;
 }
 
-function renderDeathOverlay(beginMs) {
+function renderDeathOverlay(showAtMs) {
   return `
-  <g opacity="0">
-    <animate attributeName="opacity" values="0;0;1" keyTimes="0;0.86;1" dur="${beginMs}ms" fill="freeze" />
+  <g visibility="hidden">
+    <set attributeName="visibility" to="visible" begin="${showAtMs}ms" fill="freeze" />
     <rect x="0" y="0" width="620" height="260" fill="#020617" fill-opacity="0.78" />
     <text x="310" y="108" text-anchor="middle" fill="#f8fafc" font-size="34" font-family="'Trebuchet MS', Arial, sans-serif">You deid</text>
     <text x="310" y="138" text-anchor="middle" fill="#93c5fd" font-size="16" font-family="'Trebuchet MS', Arial, sans-serif">press flap to start a new game</text>
@@ -434,9 +417,7 @@ function renderViewSvg(rawState) {
   const nextPipePreview = !predictedCrash && prediction.secondGap
     ? renderPipe(prediction.secondGap.top, PIPE_START_X + 250, 140, CYCLE_MS, "0s")
     : "";
-  const predictionLine = !predictedCrash && prediction.secondGap
-    ? `<polyline points="164,${LANE_Y[state.birdLane]} 250,${LANE_Y[prediction.firstIdleLane]} 404,${LANE_Y[prediction.secondIdleLane]}" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="3" stroke-dasharray="6 5" />`
-    : `<line x1="164" y1="${LANE_Y[state.birdLane]}" x2="250" y2="${LANE_Y[prediction.firstIdleLane]}" stroke="#ffffff" stroke-opacity="0.45" stroke-width="3" stroke-dasharray="6 5" />`;
+  const deathRevealAtMs = Math.max(1200, CYCLE_MS - 180);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="620" height="260" viewBox="0 0 620 260" role="img" aria-label="README Flappy animated game screen">
@@ -444,7 +425,6 @@ function renderViewSvg(rawState) {
   <rect y="188" width="620" height="72" fill="#22c55e" />
   <rect y="204" width="620" height="56" fill="#15803d" />
   <rect x="${tapBandX}" y="28" width="${tapBandWidth}" height="160" fill="#f97316" fill-opacity="0.12" stroke="#fb923c" stroke-opacity="0.3" stroke-dasharray="6 4" />
-  ${predictionLine}
   <line x1="180" y1="28" x2="180" y2="188" stroke="#ffffff" stroke-opacity="0.35" stroke-dasharray="6 6" />
   <text x="180" y="22" text-anchor="middle" fill="#f8fafc" font-size="12" font-family="'Trebuchet MS', Arial, sans-serif">TAP LINE</text>
   ${flapPipe ? renderPipe(flapPipe.top, 184, -180, 900, "0s") : ""}
@@ -454,8 +434,8 @@ function renderViewSvg(rawState) {
   <text x="18" y="26" fill="#082f49" font-size="20" font-family="'Trebuchet MS', Arial, sans-serif">README-FLAPPY</text>
   <text x="18" y="50" fill="#082f49" font-size="15" font-family="'Trebuchet MS', Arial, sans-serif">score ${escapeXml(String(state.score))} | best ${escapeXml(String(state.bestScore))}</text>
   <text x="18" y="72" fill="#082f49" font-size="13" font-family="'Trebuchet MS', Arial, sans-serif">${escapeXml(state.lastLog)}</text>
-  <text x="18" y="92" fill="#082f49" font-size="12" font-family="'Trebuchet MS', Arial, sans-serif">noise ${escapeXml(`${state.lastTapErrorMs}ms`)} | gap ${escapeXml(String(upcomingGap.lane + 1))}${prediction.secondGap ? ` | next ${escapeXml(String(prediction.secondGap.lane + 1))}` : ""} | line preview on</text>
-  ${predictedCrash ? renderDeathOverlay(CYCLE_MS) : ""}
+  <text x="18" y="92" fill="#082f49" font-size="12" font-family="'Trebuchet MS', Arial, sans-serif">noise ${escapeXml(`${state.lastTapErrorMs}ms`)} | gap ${escapeXml(String(upcomingGap.lane + 1))}${prediction.secondGap ? ` | next ${escapeXml(String(prediction.secondGap.lane + 1))}` : ""}</text>
+  ${predictedCrash ? renderDeathOverlay(deathRevealAtMs) : ""}
 </svg>`;
 }
 
