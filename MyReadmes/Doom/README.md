@@ -2,49 +2,42 @@
 
 <table>
   <tr>
-    <td align="center" valign="middle">
-      <a href="https://p3cap.vercel.app/doom/global/turn-left?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-        <img src="https://p3cap.vercel.app/doom/global/images/button-turn-left.svg" alt="Turn left" width="146" />
-      </a>
-      <br />
-      <a href="https://p3cap.vercel.app/doom/global/forward?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-        <img src="https://p3cap.vercel.app/doom/global/images/button-forward.svg" alt="Move forward" width="146" />
-      </a>
-      <br />
-      <a href="https://p3cap.vercel.app/doom/global/strafe-left?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-        <img src="https://p3cap.vercel.app/doom/global/images/button-strafe-left.svg" alt="Step left" width="146" />
-      </a>
-      <br />
-      <a href="https://p3cap.vercel.app/doom/global/backward?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-        <img src="https://p3cap.vercel.app/doom/global/images/button-backward.svg" alt="Move backward" width="146" />
-      </a>
-    </td>
-    <td align="center" valign="middle">
+    <td align="center">
       <img src="https://p3cap.vercel.app/doom/global/images/view.svg" alt="Retro Doom-like game screen" width="590" />
       <br />
       <sub><strong>STEP MODE</strong> | one click = one world update | enemies only move after your input</sub>
-    </td>
-    <td align="center" valign="middle">
+      <br />
+      <br />
+      <a href="https://p3cap.vercel.app/doom/global/turn-left?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
+        <img src="https://p3cap.vercel.app/doom/global/images/button-turn-left.svg" alt="Turn left" width="132" />
+      </a>
+      <a href="https://p3cap.vercel.app/doom/global/forward?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
+        <img src="https://p3cap.vercel.app/doom/global/images/button-forward.svg" alt="Move forward" width="132" />
+      </a>
       <a href="https://p3cap.vercel.app/doom/global/turn-right?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-        <img src="https://p3cap.vercel.app/doom/global/images/button-turn-right.svg" alt="Turn right" width="146" />
+        <img src="https://p3cap.vercel.app/doom/global/images/button-turn-right.svg" alt="Turn right" width="132" />
       </a>
-      <br />
       <a href="https://p3cap.vercel.app/doom/global/shoot?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-        <img src="https://p3cap.vercel.app/doom/global/images/button-shoot.svg" alt="Shoot" width="146" />
+        <img src="https://p3cap.vercel.app/doom/global/images/button-shoot.svg" alt="Shoot" width="132" />
       </a>
       <br />
+      <a href="https://p3cap.vercel.app/doom/global/strafe-left?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
+        <img src="https://p3cap.vercel.app/doom/global/images/button-strafe-left.svg" alt="Step left" width="132" />
+      </a>
+      <a href="https://p3cap.vercel.app/doom/global/backward?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
+        <img src="https://p3cap.vercel.app/doom/global/images/button-backward.svg" alt="Move backward" width="132" />
+      </a>
       <a href="https://p3cap.vercel.app/doom/global/strafe-right?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-        <img src="https://p3cap.vercel.app/doom/global/images/button-strafe-right.svg" alt="Step right" width="146" />
+        <img src="https://p3cap.vercel.app/doom/global/images/button-strafe-right.svg" alt="Step right" width="132" />
       </a>
-      <br />
       <a href="https://p3cap.vercel.app/doom/global/wait?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-        <img src="https://p3cap.vercel.app/doom/global/images/button-wait.svg" alt="Wait" width="146" />
+        <img src="https://p3cap.vercel.app/doom/global/images/button-wait.svg" alt="Wait" width="132" />
       </a>
     </td>
   </tr>
 </table>
 
-<h4>DOOM-PAD 94</h4>
+<h4>README-DOOM</h4>
 <p>Primitive README FPS with generated mazes, bigger floors as you descend, and deterministic turn-step input.</p>
 <sub>Change `/doom/global/` to `/doom/&lt;YOUR_LOBBY&gt;/` in the URLs if you want a private run.</sub>
 

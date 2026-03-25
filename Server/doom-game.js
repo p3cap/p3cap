@@ -153,6 +153,24 @@ function renderGunSprite(state) {
 
 function renderViewSvg(rawState) {
   const state = normalizeDoomState(rawState);
+  if (state.status === "dead" || state.health <= 0) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-label="Doom death screen">
+  <rect width="720" height="420" fill="#000000" />
+  <rect x="10" y="10" width="700" height="400" fill="#050505" stroke="#1a1a1a" stroke-width="8" />
+  <rect x="24" y="24" width="672" height="312" fill="#000000" stroke="#111111" stroke-width="4" />
+  <text x="360" y="170" text-anchor="middle" fill="#f8fafc" font-size="40" font-family="'Courier New', monospace">You deid</text>
+  <text x="360" y="210" text-anchor="middle" fill="#9ca3af" font-size="17" font-family="'Courier New', monospace">press any button to start a new game</text>
+  <rect x="24" y="336" width="672" height="60" fill="#050505" stroke="#111111" stroke-width="4" />
+  <text x="44" y="360" fill="#fca5a5" font-size="18" font-family="'Courier New', monospace">README-DOOM</text>
+  <text x="44" y="384" fill="#f8fafc" font-size="16" font-family="'Courier New', monospace">HP 0</text>
+  <text x="154" y="384" fill="#f8fafc" font-size="16" font-family="'Courier New', monospace">AMMO 0</text>
+  <text x="294" y="384" fill="#f8fafc" font-size="16" font-family="'Courier New', monospace">FLOOR ${escapeXml(String(state.floor))}</text>
+  <text x="416" y="384" fill="#f8fafc" font-size="16" font-family="'Courier New', monospace">SCORE ${escapeXml(String(state.score))}</text>
+  <text x="44" y="404" fill="#9ca3af" font-size="13" font-family="'Courier New', monospace">${escapeXml(state.lastLog)}</text>
+</svg>`;
+  }
+
   const frames = [
     { x: 66, y: 56, w: 588, h: 252 },
     { x: 126, y: 84, w: 468, h: 212 },
@@ -239,7 +257,7 @@ function renderViewSvg(rawState) {
     <rect x="339" y="198" width="42" height="6" fill="#f8fafc" opacity="0.92" />
     ${renderGunSprite(state)}
     <rect x="24" y="336" width="672" height="60" fill="#120906" stroke="#472116" stroke-width="4" />
-    <text x="44" y="360" fill="#fca5a5" font-size="18" font-family="'Courier New', monospace">DOOM-PAD 94</text>
+    <text x="44" y="360" fill="#fca5a5" font-size="18" font-family="'Courier New', monospace">README-DOOM</text>
     <text x="44" y="384" fill="${hpColor}" font-size="16" font-family="'Courier New', monospace">HP ${escapeXml(String(state.health))}</text>
     <text x="154" y="384" fill="#bfdbfe" font-size="16" font-family="'Courier New', monospace">AMMO ${escapeXml(String(state.ammo))}</text>
     <text x="294" y="384" fill="#fde68a" font-size="16" font-family="'Courier New', monospace">FLOOR ${escapeXml(String(state.floor))}</text>
