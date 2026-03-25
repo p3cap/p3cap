@@ -72,9 +72,33 @@ function createFileJsonStateStore({ filePath, createFreshState, normalizeState }
 }
 
 function createRedisJsonStateStore({ redis, key, createFreshState, normalizeState }) {
+  function parseStoredValue(raw) {
+    if (raw === null || raw === undefined) {
+      return null;
+    }
+
+    if (typeof raw === "string") {
+      if (!raw.trim()) {
+        return null;
+      }
+
+      try {
+        return JSON.parse(raw);
+      } catch (error) {
+        return null;
+      }
+    }
+
+    if (typeof raw === "object") {
+      return raw;
+    }
+
+    return null;
+  }
+
   async function hasState() {
     const raw = await redis.get(key);
-    return typeof raw === "string" && raw.trim().length > 0;
+    return parseStoredValue(raw) !== null;
   }
 
   async function writeInitialState() {
@@ -85,12 +109,9 @@ function createRedisJsonStateStore({ redis, key, createFreshState, normalizeStat
 
   async function getState() {
     const raw = await redis.get(key);
-    if (typeof raw === "string" && raw.trim()) {
-      try {
-        return normalizeState(JSON.parse(raw));
-      } catch (error) {
-        return writeInitialState();
-      }
+    const parsed = parseStoredValue(raw);
+    if (parsed) {
+      return normalizeState(parsed);
     }
 
     return writeInitialState();
