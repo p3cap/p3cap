@@ -1,3 +1,6 @@
+const fs = require("fs");
+const path = require("path");
+
 const DOOM_ROUTE_MAP = new Map([
   ["api/state", "state"],
   ["images/view.svg", "doomViewImage"],
@@ -65,6 +68,105 @@ const ACTION_LOGS = {
   doomTurnRight: "You turn right.",
   doomWait: "You wait one beat."
 };
+
+const DOOM_TEXTURE_DIR = path.join(__dirname, "assets", "doom");
+const textureCache = new Map();
+
+function escapeXml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function escapeAttribute(value) {
+  return escapeXml(value);
+}
+
+function getMimeTypeForTexture(filePath) {
+  const extension = path.extname(filePath).toLowerCase();
+  if (extension === ".png") {
+    return "image/png";
+  }
+  if (extension === ".jpg" || extension === ".jpeg") {
+    return "image/jpeg";
+  }
+  if (extension === ".gif") {
+    return "image/gif";
+  }
+  if (extension === ".webp") {
+    return "image/webp";
+  }
+  if (extension === ".svg") {
+    return "image/svg+xml";
+  }
+
+  return "";
+}
+
+function findTextureFile(baseName) {
+  const extensions = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"];
+
+  for (const extension of extensions) {
+    const candidate = path.join(DOOM_TEXTURE_DIR, `${baseName}${extension}`);
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return "";
+}
+
+function getTextureDataUri(baseName) {
+  if (textureCache.has(baseName)) {
+    return textureCache.get(baseName);
+  }
+
+  const texturePath = findTextureFile(baseName);
+  if (!texturePath) {
+    textureCache.set(baseName, "");
+    return "";
+  }
+
+  const mimeType = getMimeTypeForTexture(texturePath);
+  if (!mimeType) {
+    textureCache.set(baseName, "");
+    return "";
+  }
+
+  const dataUri = `data:${mimeType};base64,${fs.readFileSync(texturePath).toString("base64")}`;
+  textureCache.set(baseName, dataUri);
+  return dataUri;
+}
+
+function renderTexturedPolygon(points, textureName, fallbackFill, width, height) {
+  const texture = getTextureDataUri(textureName);
+  const id = `${textureName}-${Math.abs(points.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0))}`;
+
+  if (!texture) {
+    return `<polygon points="${points}" fill="${fallbackFill}" />`;
+  }
+
+  return `
+  <defs>
+    <clipPath id="${id}">
+      <polygon points="${points}" />
+    </clipPath>
+  </defs>
+  <image href="${texture}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="none" clip-path="url(#${id})" />
+  `;
+}
+
+function renderTexturedRect(x, y, width, height, textureName, fallbackFill) {
+  const texture = getTextureDataUri(textureName);
+  if (!texture) {
+    return `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${fallbackFill}" />`;
+  }
+
+  return `<image href="${texture}" x="${x}" y="${y}" width="${width}" height="${height}" preserveAspectRatio="none" />`;
+}
 
 function clampNumber(value, fallback, minimum = Number.NEGATIVE_INFINITY, maximum = Number.POSITIVE_INFINITY) {
   const numeric = Number(value);
@@ -465,15 +567,6 @@ function applyDoomAction(currentState, route) {
   return state;
 }
 
-function escapeXml(value) {
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
 function buildLobbyPath(gameSlug, lobbySlug, suffix = "") {
   return `/${gameSlug}/${lobbySlug}${suffix}`;
 }
@@ -580,7 +673,7 @@ function renderDoomViewSvg(state) {
     { x: 322, y: 180, w: 76, h: 66 }
   ];
   const corridorLayers = [];
-  let frontWall = "";
+  let frontWall = `<rect x="${frames[5].x}" y="${frames[5].y}" width="${frames[5].w}" height="${frames[5].h}" fill="#080506" />`;
   let enemyDepth = 0;
 
   for (let depth = 1; depth <= 5; depth += 1) {
@@ -589,35 +682,43 @@ function renderDoomViewSvg(state) {
     const center = getTileInDirection(state, depth, 0);
     const left = getTileInDirection(state, depth, -1);
     const right = getTileInDirection(state, depth, 1);
-    const wallTone = depth % 2 === 0 ? "#7a3a1e" : "#8f4720";
-    const edgeTone = depth % 2 === 0 ? "#4d2413" : "#592b16";
-    const openingTone = "#0f0908";
+    const wallTone = depth <= 2 ? "#7c3d1d" : depth === 3 ? "#683116" : "#522611";
+    const edgeTone = depth <= 2 ? "#31140b" : "#24100a";
+    const openingTone = "#0c0707";
+    const ceilingTone = depth <= 2 ? "#22110d" : "#180d0b";
+    const floorTone = depth <= 2 ? "#19120d" : "#120c09";
+    const leftPoints = `${outer.x},${outer.y} ${inner.x},${inner.y} ${inner.x},${inner.y + inner.h} ${outer.x},${outer.y + outer.h}`;
+    const rightPoints = `${outer.x + outer.w},${outer.y} ${inner.x + inner.w},${inner.y} ${inner.x + inner.w},${inner.y + inner.h} ${outer.x + outer.w},${outer.y + outer.h}`;
+    const ceilingPoints = `${outer.x},${outer.y} ${outer.x + outer.w},${outer.y} ${inner.x + inner.w},${inner.y} ${inner.x},${inner.y}`;
+    const floorPoints = `${outer.x},${outer.y + outer.h} ${outer.x + outer.w},${outer.y + outer.h} ${inner.x + inner.w},${inner.y + inner.h} ${inner.x},${inner.y + inner.h}`;
 
     if (!enemyDepth && center.enemy && !center.wall) {
       enemyDepth = depth;
     }
 
     if (left.wall) {
-      corridorLayers.push(`<polygon points="${outer.x},${outer.y} ${inner.x},${inner.y} ${inner.x},${inner.y + inner.h} ${outer.x},${outer.y + outer.h}" fill="${wallTone}" stroke="${edgeTone}" stroke-width="2" />`);
+      corridorLayers.push(renderTexturedPolygon(leftPoints, "wall-side", wallTone, 720, 420));
+      corridorLayers.push(`<polygon points="${leftPoints}" fill="none" stroke="${edgeTone}" stroke-width="2" />`);
     } else {
-      corridorLayers.push(`<polygon points="${outer.x},${outer.y} ${inner.x},${inner.y} ${inner.x},${inner.y + inner.h} ${outer.x},${outer.y + outer.h}" fill="${openingTone}" stroke="#251310" stroke-width="2" />`);
+      corridorLayers.push(`<polygon points="${leftPoints}" fill="${openingTone}" />`);
     }
 
     if (right.wall) {
-      corridorLayers.push(`<polygon points="${outer.x + outer.w},${outer.y} ${inner.x + inner.w},${inner.y} ${inner.x + inner.w},${inner.y + inner.h} ${outer.x + outer.w},${outer.y + outer.h}" fill="${wallTone}" stroke="${edgeTone}" stroke-width="2" />`);
+      corridorLayers.push(renderTexturedPolygon(rightPoints, "wall-side", wallTone, 720, 420));
+      corridorLayers.push(`<polygon points="${rightPoints}" fill="none" stroke="${edgeTone}" stroke-width="2" />`);
     } else {
-      corridorLayers.push(`<polygon points="${outer.x + outer.w},${outer.y} ${inner.x + inner.w},${inner.y} ${inner.x + inner.w},${inner.y + inner.h} ${outer.x + outer.w},${outer.y + outer.h}" fill="${openingTone}" stroke="#251310" stroke-width="2" />`);
+      corridorLayers.push(`<polygon points="${rightPoints}" fill="${openingTone}" />`);
     }
 
-    corridorLayers.push(`<polygon points="${outer.x},${outer.y} ${outer.x + outer.w},${outer.y} ${inner.x + inner.w},${inner.y} ${inner.x},${inner.y}" fill="#2b1410" stroke="#1a0d0a" stroke-width="2" />`);
-    corridorLayers.push(`<polygon points="${outer.x},${outer.y + outer.h} ${outer.x + outer.w},${outer.y + outer.h} ${inner.x + inner.w},${inner.y + inner.h} ${inner.x},${inner.y + inner.h}" fill="#1d140f" stroke="#120c09" stroke-width="2" />`);
+    corridorLayers.push(renderTexturedPolygon(ceilingPoints, "ceiling", ceilingTone, 720, 420));
+    corridorLayers.push(`<polygon points="${ceilingPoints}" fill="none" stroke="#130b09" stroke-width="2" />`);
+    corridorLayers.push(renderTexturedPolygon(floorPoints, "floor", floorTone, 720, 420));
+    corridorLayers.push(`<polygon points="${floorPoints}" fill="none" stroke="#0f0b09" stroke-width="2" />`);
 
     if (center.wall) {
       frontWall = `
-        <rect x="${inner.x}" y="${inner.y}" width="${inner.w}" height="${inner.h}" fill="${wallTone}" stroke="${edgeTone}" stroke-width="3" />
-        <rect x="${inner.x + Math.floor(inner.w * 0.14)}" y="${inner.y + Math.floor(inner.h * 0.16)}" width="${Math.floor(inner.w * 0.22)}" height="${Math.floor(inner.h * 0.2)}" fill="#562614" />
-        <rect x="${inner.x + Math.floor(inner.w * 0.52)}" y="${inner.y + Math.floor(inner.h * 0.2)}" width="${Math.floor(inner.w * 0.14)}" height="${Math.floor(inner.h * 0.16)}" fill="#c97b2a" opacity="0.3" />
-        <rect x="${inner.x + Math.floor(inner.w * 0.38)}" y="${inner.y + Math.floor(inner.h * 0.48)}" width="${Math.floor(inner.w * 0.24)}" height="${Math.floor(inner.h * 0.4)}" fill="#31160f" />
+        ${renderTexturedRect(inner.x, inner.y, inner.w, inner.h, "wall-front", wallTone)}
+        <rect x="${inner.x}" y="${inner.y}" width="${inner.w}" height="${inner.h}" fill="none" stroke="${edgeTone}" stroke-width="3" />
       `;
       break;
     }
@@ -625,11 +726,22 @@ function renderDoomViewSvg(state) {
 
   const hpColor = state.health > 50 ? "#86efac" : state.health > 20 ? "#fde68a" : "#fca5a5";
   const gunColor = state.ammo > 0 ? "#cbd5e1" : "#7f1d1d";
+  const radarBox = {
+    x: 544,
+    y: 22,
+    w: 144,
+    h: 118
+  };
+  const radarMap = {
+    x: 554,
+    y: 42,
+    cell: 10
+  };
   const radarEnemies = state.enemies
     .filter((enemy) => enemy.hp > 0)
     .map((enemy) => {
-      const x = 560 + (enemy.x * 10);
-      const y = 24 + (enemy.y * 10);
+      const x = radarMap.x + (enemy.x * radarMap.cell) + 2;
+      const y = radarMap.y + (enemy.y * radarMap.cell) + 2;
       return `<rect x="${x}" y="${y}" width="6" height="6" fill="#ef4444" />`;
     })
     .join("");
@@ -640,20 +752,23 @@ function renderDoomViewSvg(state) {
   <g shape-rendering="crispEdges">
     <rect x="10" y="10" width="700" height="400" fill="#160b09" stroke="#4a2317" stroke-width="8" />
     <rect x="24" y="24" width="672" height="312" fill="#120909" stroke="#2c1511" stroke-width="4" />
-    <rect x="24" y="24" width="672" height="146" fill="#2f1410" />
-    <rect x="24" y="170" width="672" height="166" fill="#1a110d" />
     ${corridorLayers.join("\n")}
     ${frontWall}
     ${enemyDepth ? renderEnemySprite(enemyDepth) : ""}
     <rect x="357" y="180" width="6" height="42" fill="#f8fafc" opacity="0.9" />
     <rect x="339" y="198" width="42" height="6" fill="#f8fafc" opacity="0.9" />
     <g>
-      <rect x="292" y="302" width="136" height="18" fill="${gunColor}" />
-      <rect x="316" y="286" width="88" height="22" fill="#94a3b8" />
-      <rect x="348" y="254" width="22" height="44" fill="#64748b" />
-      <rect x="334" y="238" width="50" height="22" fill="#475569" />
-      <rect x="308" y="320" width="28" height="36" fill="#334155" />
-      <rect x="384" y="320" width="28" height="36" fill="#334155" />
+      <polygon points="304,392 316,338 336,338 332,392" fill="#7b5a45" />
+      <polygon points="416,392 404,338 384,338 388,392" fill="#7b5a45" />
+      <rect x="322" y="338" width="76" height="24" fill="#2f3640" />
+      <rect x="330" y="300" width="60" height="48" fill="${gunColor}" />
+      <rect x="338" y="278" width="44" height="30" fill="#8a97a8" />
+      <rect x="346" y="242" width="28" height="62" fill="#566273" />
+      <rect x="352" y="216" width="16" height="32" fill="#cfd8e3" />
+      <rect x="344" y="290" width="32" height="10" fill="#1f2937" />
+      <rect x="336" y="350" width="48" height="18" fill="#111827" />
+      <rect x="318" y="360" width="14" height="18" fill="#4b5563" />
+      <rect x="388" y="360" width="14" height="18" fill="#4b5563" />
     </g>
     <rect x="24" y="336" width="672" height="60" fill="#120906" stroke="#472116" stroke-width="4" />
     <text x="44" y="360" fill="#fca5a5" font-size="18" font-family="'Courier New', monospace">DOOM-PAD 94</text>
@@ -662,12 +777,12 @@ function renderDoomViewSvg(state) {
     <text x="294" y="384" fill="#fde68a" font-size="16" font-family="'Courier New', monospace">FLOOR ${escapeXml(String(state.floor))}</text>
     <text x="416" y="384" fill="#86efac" font-size="16" font-family="'Courier New', monospace">SCORE ${escapeXml(String(state.score))}</text>
     <text x="44" y="404" fill="#f8e7ce" font-size="13" font-family="'Courier New', monospace">${escapeXml(state.lastLog)}</text>
-    <rect x="548" y="22" width="132" height="102" fill="#120906" stroke="#4a2317" stroke-width="3" />
-    <text x="614" y="40" text-anchor="middle" fill="#f8e7ce" font-size="13" font-family="'Courier New', monospace">RADAR</text>
-    <rect x="560" y="48" width="100" height="90" fill="#0b0908" />
-    ${MAP_ROWS.map((row, y) => row.split("").map((tile, x) => `<rect x="${560 + (x * 10)}" y="${48 + (y * 10)}" width="9" height="9" fill="${tile === "#" ? "#4a1d10" : "#16100e"}" />`).join("")).join("")}
+    <rect x="${radarBox.x}" y="${radarBox.y}" width="${radarBox.w}" height="${radarBox.h}" fill="#120906" stroke="#4a2317" stroke-width="3" />
+    <text x="${radarBox.x + Math.floor(radarBox.w / 2)}" y="36" text-anchor="middle" fill="#f8e7ce" font-size="12" font-family="'Courier New', monospace">RADAR</text>
+    <rect x="${radarMap.x}" y="${radarMap.y}" width="100" height="90" fill="#0b0908" />
+    ${MAP_ROWS.map((row, y) => row.split("").map((tile, x) => `<rect x="${radarMap.x + (x * radarMap.cell)}" y="${radarMap.y + (y * radarMap.cell)}" width="9" height="9" fill="${tile === "#" ? "#4a1d10" : "#16100e"}" />`).join("")).join("")}
     ${radarEnemies}
-    <rect x="${560 + (state.player.x * 10) + 2}" y="${48 + (state.player.y * 10) + 2}" width="6" height="6" fill="#fde68a" />
+    <rect x="${radarMap.x + (state.player.x * radarMap.cell) + 2}" y="${radarMap.y + (state.player.y * radarMap.cell) + 2}" width="6" height="6" fill="#fde68a" />
   </g>
 </svg>`;
 }
