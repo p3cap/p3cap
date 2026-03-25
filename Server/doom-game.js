@@ -571,67 +571,103 @@ function renderEnemySprite(depth) {
 }
 
 function renderDoomViewSvg(state) {
-  const frames = {
-    1: { x: 155, y: 90, w: 410, h: 230 },
-    2: { x: 220, y: 128, w: 280, h: 154 },
-    3: { x: 270, y: 158, w: 180, h: 94 },
-    4: { x: 305, y: 178, w: 110, h: 54 }
-  };
-  const maxDepth = 4;
-  const wallShapes = [];
+  const frames = [
+    { x: 66, y: 56, w: 588, h: 252 },
+    { x: 126, y: 84, w: 468, h: 212 },
+    { x: 184, y: 112, w: 352, h: 172 },
+    { x: 236, y: 138, w: 248, h: 136 },
+    { x: 282, y: 160, w: 156, h: 102 },
+    { x: 322, y: 180, w: 76, h: 66 }
+  ];
+  const corridorLayers = [];
+  let frontWall = "";
   let enemyDepth = 0;
-  let frontWallDepth = 0;
 
-  for (let depth = maxDepth; depth >= 1; depth -= 1) {
-    const frame = frames[depth];
-    const nextFrame = frames[Math.min(maxDepth, depth + 1)] || { x: 344, y: 199, w: 32, h: 16 };
+  for (let depth = 1; depth <= 5; depth += 1) {
+    const outer = frames[depth - 1];
+    const inner = frames[depth];
     const center = getTileInDirection(state, depth, 0);
     const left = getTileInDirection(state, depth, -1);
     const right = getTileInDirection(state, depth, 1);
+    const wallTone = depth % 2 === 0 ? "#7a3a1e" : "#8f4720";
+    const edgeTone = depth % 2 === 0 ? "#4d2413" : "#592b16";
+    const openingTone = "#0f0908";
 
     if (!enemyDepth && center.enemy && !center.wall) {
       enemyDepth = depth;
     }
 
-    if (!center.wall) {
-      if (left.wall) {
-        wallShapes.push(`<polygon points="0,0 0,420 ${frame.x},${frame.y + frame.h} ${frame.x},${frame.y}" fill="${depth % 2 === 0 ? "#5f3b1f" : "#71421d"}" />`);
-      }
-      if (right.wall) {
-        wallShapes.push(`<polygon points="720,0 720,420 ${frame.x + frame.w},${frame.y + frame.h} ${frame.x + frame.w},${frame.y}" fill="${depth % 2 === 0 ? "#5f3b1f" : "#71421d"}" />`);
-      }
-      continue;
+    if (left.wall) {
+      corridorLayers.push(`<polygon points="${outer.x},${outer.y} ${inner.x},${inner.y} ${inner.x},${inner.y + inner.h} ${outer.x},${outer.y + outer.h}" fill="${wallTone}" stroke="${edgeTone}" stroke-width="2" />`);
+    } else {
+      corridorLayers.push(`<polygon points="${outer.x},${outer.y} ${inner.x},${inner.y} ${inner.x},${inner.y + inner.h} ${outer.x},${outer.y + outer.h}" fill="${openingTone}" stroke="#251310" stroke-width="2" />`);
     }
 
-    frontWallDepth = depth;
-    wallShapes.push(`
-      <rect x="${frame.x}" y="${frame.y}" width="${frame.w}" height="${frame.h}" fill="${depth % 2 === 0 ? "#7c3f1a" : "#944c1f"}" />
-      <rect x="${frame.x + Math.floor(frame.w * 0.14)}" y="${frame.y + Math.floor(frame.h * 0.16)}" width="${Math.floor(frame.w * 0.24)}" height="${Math.floor(frame.h * 0.22)}" fill="#4a1d10" />
-      <rect x="${frame.x + Math.floor(frame.w * 0.6)}" y="${frame.y + Math.floor(frame.h * 0.28)}" width="${Math.floor(frame.w * 0.18)}" height="${Math.floor(frame.h * 0.14)}" fill="#603119" />
-      <rect x="${frame.x}" y="${frame.y}" width="${frame.w}" height="${Math.max(4, Math.floor(frame.h * 0.08))}" fill="#b8682a" opacity="0.25" />
-    `);
-    break;
+    if (right.wall) {
+      corridorLayers.push(`<polygon points="${outer.x + outer.w},${outer.y} ${inner.x + inner.w},${inner.y} ${inner.x + inner.w},${inner.y + inner.h} ${outer.x + outer.w},${outer.y + outer.h}" fill="${wallTone}" stroke="${edgeTone}" stroke-width="2" />`);
+    } else {
+      corridorLayers.push(`<polygon points="${outer.x + outer.w},${outer.y} ${inner.x + inner.w},${inner.y} ${inner.x + inner.w},${inner.y + inner.h} ${outer.x + outer.w},${outer.y + outer.h}" fill="${openingTone}" stroke="#251310" stroke-width="2" />`);
+    }
+
+    corridorLayers.push(`<polygon points="${outer.x},${outer.y} ${outer.x + outer.w},${outer.y} ${inner.x + inner.w},${inner.y} ${inner.x},${inner.y}" fill="#2b1410" stroke="#1a0d0a" stroke-width="2" />`);
+    corridorLayers.push(`<polygon points="${outer.x},${outer.y + outer.h} ${outer.x + outer.w},${outer.y + outer.h} ${inner.x + inner.w},${inner.y + inner.h} ${inner.x},${inner.y + inner.h}" fill="#1d140f" stroke="#120c09" stroke-width="2" />`);
+
+    if (center.wall) {
+      frontWall = `
+        <rect x="${inner.x}" y="${inner.y}" width="${inner.w}" height="${inner.h}" fill="${wallTone}" stroke="${edgeTone}" stroke-width="3" />
+        <rect x="${inner.x + Math.floor(inner.w * 0.14)}" y="${inner.y + Math.floor(inner.h * 0.16)}" width="${Math.floor(inner.w * 0.22)}" height="${Math.floor(inner.h * 0.2)}" fill="#562614" />
+        <rect x="${inner.x + Math.floor(inner.w * 0.52)}" y="${inner.y + Math.floor(inner.h * 0.2)}" width="${Math.floor(inner.w * 0.14)}" height="${Math.floor(inner.h * 0.16)}" fill="#c97b2a" opacity="0.3" />
+        <rect x="${inner.x + Math.floor(inner.w * 0.38)}" y="${inner.y + Math.floor(inner.h * 0.48)}" width="${Math.floor(inner.w * 0.24)}" height="${Math.floor(inner.h * 0.4)}" fill="#31160f" />
+      `;
+      break;
+    }
   }
 
-  if (!frontWallDepth) {
-    const far = frames[4];
-    wallShapes.push(`<rect x="${far.x}" y="${far.y}" width="${far.w}" height="${far.h}" fill="#130b08" />`);
-  }
-
-  const statusText = state.status === "dead" ? "YOU DIED" : `F${state.floor} T${state.turn}`;
+  const hpColor = state.health > 50 ? "#86efac" : state.health > 20 ? "#fde68a" : "#fca5a5";
+  const gunColor = state.ammo > 0 ? "#cbd5e1" : "#7f1d1d";
+  const radarEnemies = state.enemies
+    .filter((enemy) => enemy.hp > 0)
+    .map((enemy) => {
+      const x = 560 + (enemy.x * 10);
+      const y = 24 + (enemy.y * 10);
+      return `<rect x="${x}" y="${y}" width="6" height="6" fill="#ef4444" />`;
+    })
+    .join("");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-label="Doom-style game viewport">
-  <rect width="720" height="210" fill="#2f1812" />
-  <rect y="210" width="720" height="210" fill="#1f120d" />
+  <rect width="720" height="420" fill="#090607" />
   <g shape-rendering="crispEdges">
-    <rect x="0" y="0" width="720" height="420" fill="none" stroke="#2b140f" stroke-width="14" />
-    ${wallShapes.join("\n")}
+    <rect x="10" y="10" width="700" height="400" fill="#160b09" stroke="#4a2317" stroke-width="8" />
+    <rect x="24" y="24" width="672" height="312" fill="#120909" stroke="#2c1511" stroke-width="4" />
+    <rect x="24" y="24" width="672" height="146" fill="#2f1410" />
+    <rect x="24" y="170" width="672" height="166" fill="#1a110d" />
+    ${corridorLayers.join("\n")}
+    ${frontWall}
     ${enemyDepth ? renderEnemySprite(enemyDepth) : ""}
-    <rect x="352" y="192" width="16" height="36" fill="#d1d5db" opacity="0.55" />
-    <rect x="330" y="392" width="60" height="18" fill="#111827" />
-    <rect x="18" y="18" width="112" height="28" fill="#111827" />
-    <text x="74" y="37" text-anchor="middle" fill="#fca5a5" font-size="18" font-family="'Courier New', monospace">${escapeXml(statusText)}</text>
+    <rect x="357" y="180" width="6" height="42" fill="#f8fafc" opacity="0.9" />
+    <rect x="339" y="198" width="42" height="6" fill="#f8fafc" opacity="0.9" />
+    <g>
+      <rect x="292" y="302" width="136" height="18" fill="${gunColor}" />
+      <rect x="316" y="286" width="88" height="22" fill="#94a3b8" />
+      <rect x="348" y="254" width="22" height="44" fill="#64748b" />
+      <rect x="334" y="238" width="50" height="22" fill="#475569" />
+      <rect x="308" y="320" width="28" height="36" fill="#334155" />
+      <rect x="384" y="320" width="28" height="36" fill="#334155" />
+    </g>
+    <rect x="24" y="336" width="672" height="60" fill="#120906" stroke="#472116" stroke-width="4" />
+    <text x="44" y="360" fill="#fca5a5" font-size="18" font-family="'Courier New', monospace">DOOM-PAD 94</text>
+    <text x="44" y="384" fill="${hpColor}" font-size="16" font-family="'Courier New', monospace">HP ${escapeXml(String(state.health))}</text>
+    <text x="154" y="384" fill="#bfdbfe" font-size="16" font-family="'Courier New', monospace">AMMO ${escapeXml(String(state.ammo))}</text>
+    <text x="294" y="384" fill="#fde68a" font-size="16" font-family="'Courier New', monospace">FLOOR ${escapeXml(String(state.floor))}</text>
+    <text x="416" y="384" fill="#86efac" font-size="16" font-family="'Courier New', monospace">SCORE ${escapeXml(String(state.score))}</text>
+    <text x="44" y="404" fill="#f8e7ce" font-size="13" font-family="'Courier New', monospace">${escapeXml(state.lastLog)}</text>
+    <rect x="548" y="22" width="132" height="102" fill="#120906" stroke="#4a2317" stroke-width="3" />
+    <text x="614" y="40" text-anchor="middle" fill="#f8e7ce" font-size="13" font-family="'Courier New', monospace">RADAR</text>
+    <rect x="560" y="48" width="100" height="90" fill="#0b0908" />
+    ${MAP_ROWS.map((row, y) => row.split("").map((tile, x) => `<rect x="${560 + (x * 10)}" y="${48 + (y * 10)}" width="9" height="9" fill="${tile === "#" ? "#4a1d10" : "#16100e"}" />`).join("")).join("")}
+    ${radarEnemies}
+    <rect x="${560 + (state.player.x * 10) + 2}" y="${48 + (state.player.y * 10) + 2}" width="6" height="6" fill="#fde68a" />
   </g>
 </svg>`;
 }

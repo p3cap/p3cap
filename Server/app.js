@@ -288,7 +288,10 @@ function svgUpgradePanel(state) {
 function sendSvg(response, svg) {
   response.writeHead(200, {
     "Content-Type": "image/svg+xml; charset=utf-8",
-    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0",
+    "CDN-Cache-Control": "no-store",
+    "Vercel-CDN-Cache-Control": "no-store",
+    "Surrogate-Control": "no-store",
     Pragma: "no-cache",
     Expires: "0"
   });
@@ -306,7 +309,10 @@ function sendGif(response, image) {
 function sendJson(response, data) {
   response.writeHead(200, {
     "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"
+    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0",
+    "CDN-Cache-Control": "no-store",
+    "Vercel-CDN-Cache-Control": "no-store",
+    "Surrogate-Control": "no-store"
   });
   response.end(JSON.stringify(data, null, 2));
 }
@@ -314,7 +320,10 @@ function sendJson(response, data) {
 function sendHtml(response, html, statusCode = 200, extraHeaders = {}) {
   response.writeHead(statusCode, {
     "Content-Type": "text/html; charset=utf-8",
-    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0",
+    "CDN-Cache-Control": "no-store",
+    "Vercel-CDN-Cache-Control": "no-store",
+    "Surrogate-Control": "no-store",
     ...extraHeaders
   });
   response.end(html);
@@ -343,6 +352,20 @@ function resolveFallbackLocation(request, url, defaultRedirectUrl) {
   const configured = getSafeAbsoluteUrl(defaultRedirectUrl);
 
   return requested || referrer || configured || "/";
+}
+
+function createFreshFallbackLocation(fallbackLocation) {
+  try {
+    const parsed = new URL(fallbackLocation);
+    if (parsed.hostname === "github.com" || parsed.hostname === "www.github.com") {
+      parsed.searchParams.set("p3cap_refresh", Date.now().toString(36));
+      return parsed.toString();
+    }
+  } catch (error) {
+    return fallbackLocation;
+  }
+
+  return fallbackLocation;
 }
 
 function renderBackBouncePage(fallbackLocation) {
@@ -443,12 +466,12 @@ function renderRateLimitBouncePage(fallbackLocation, retryAfterMs) {
 }
 
 function sendBackBounce(response, fallbackLocation) {
-  sendHtml(response, renderBackBouncePage(fallbackLocation));
+  sendHtml(response, renderBackBouncePage(createFreshFallbackLocation(fallbackLocation)));
 }
 
 function sendRateLimitedBounce(response, fallbackLocation, retryAfterMs) {
   const retrySeconds = Math.max(1, Math.ceil(retryAfterMs / 1000));
-  sendHtml(response, renderRateLimitBouncePage(fallbackLocation, retryAfterMs), 429, {
+  sendHtml(response, renderRateLimitBouncePage(createFreshFallbackLocation(fallbackLocation), retryAfterMs), 429, {
     "Retry-After": String(retrySeconds)
   });
 }
