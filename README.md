@@ -65,7 +65,7 @@
 <summary>How to make your own lobby</summary>
 
 1. Copy this `README.md` into your profile repo.
-2. Replace `?redirect=https%3A%2F%2Fgithub.com%2Fp3cap` with your own GitHub profile URL.
+2. Replace `?redirect=https%3A%2F%2Fgithub.com%2Fp3cap` with the exact GitHub URL you want to return to.
 3. Change every `/doom/global/` segment to something like `/doom/my-lobby/`.
 4. Push the README and open your GitHub profile.
 

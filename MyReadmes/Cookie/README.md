@@ -27,7 +27,7 @@
 
 1. Create a public repository named exactly like your GitHub username so GitHub shows its `README.md` on your profile.
 2. Copy this `README.md` file into your repo.
-3. Replace `?redirect=https%3A%2F%2Fgithub.com%2Fp3cap` part after links with `?redirect=https%3A%2F%2Fgithub.com%2F<YOUR_USER_NAME>`
+3. Replace `?redirect=https%3A%2F%2Fgithub.com%2Fp3cap` with the exact GitHub URL you want to return to after each click.
 4. Optional: create your own lobby by inserting a lobby ID after `cookieclicker/` in every backend URL, for example `https://p3cap.vercel.app/cookieclicker/my-friends/click`.
 5. Cutomize your `README.md` if you want to (just keep my name on it pls).
 6. Commit and push the repository to GitHub.

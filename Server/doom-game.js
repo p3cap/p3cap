@@ -573,8 +573,8 @@ function buildLobbyPath(gameSlug, lobbySlug, suffix = "") {
 
 function renderDoomHome(state, { defaultRedirectUrl = "", gameSlug, lobbySlug, actionCooldownMs = 0 }) {
   const hint = defaultRedirectUrl
-    ? `Default redirect: <code>${escapeXml(defaultRedirectUrl)}</code>`
-    : "Set README_REDIRECT_URL to bounce action links back to GitHub automatically.";
+    ? `Default redirect target: <code>${escapeXml(defaultRedirectUrl)}</code>`
+    : "Set README_REDIRECT_URL to send action links straight back to GitHub.";
 
   return `<!doctype html>
 <html lang="en">

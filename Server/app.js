@@ -329,13 +329,32 @@ function sendHtml(response, html, statusCode = 200, extraHeaders = {}) {
   response.end(html);
 }
 
+function sendRedirect(response, location, statusCode = 303, extraHeaders = {}) {
+  response.writeHead(statusCode, {
+    Location: location,
+    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0",
+    "CDN-Cache-Control": "no-store",
+    "Vercel-CDN-Cache-Control": "no-store",
+    "Surrogate-Control": "no-store",
+    Pragma: "no-cache",
+    Expires: "0",
+    ...extraHeaders
+  });
+  response.end();
+}
+
 function getSafeAbsoluteUrl(candidate) {
   if (!candidate) {
     return "";
   }
 
+  const trimmed = String(candidate).trim();
+  if (trimmed.startsWith("https://") || trimmed.startsWith("http://")) {
+    return trimmed;
+  }
+
   try {
-    const parsed = new URL(candidate);
+    const parsed = new URL(trimmed);
     if (parsed.protocol === "http:" || parsed.protocol === "https:") {
       return parsed.toString();
     }
@@ -348,13 +367,28 @@ function getSafeAbsoluteUrl(candidate) {
 
 function resolveFallbackLocation(request, url, defaultRedirectUrl) {
   const requested = getSafeAbsoluteUrl(url.searchParams.get("redirect"));
-  const referrer = getSafeAbsoluteUrl(request.headers.referer || request.headers.referrer || "");
-  const configured = getSafeAbsoluteUrl(defaultRedirectUrl);
+  if (requested) {
+    return requested;
+  }
 
-  return requested || referrer || configured || "/";
+  const referrer = getSafeAbsoluteUrl(request.headers.referer || request.headers.referrer || "");
+  if (referrer) {
+    return referrer;
+  }
+
+  const configured = getSafeAbsoluteUrl(defaultRedirectUrl);
+  if (configured) {
+    return configured;
+  }
+
+  return "/";
 }
 
 function createFreshFallbackLocation(fallbackLocation) {
+  if (!fallbackLocation.includes("github.com")) {
+    return fallbackLocation;
+  }
+
   try {
     const parsed = new URL(fallbackLocation);
     if (parsed.hostname === "github.com" || parsed.hostname === "www.github.com") {
@@ -368,110 +402,13 @@ function createFreshFallbackLocation(fallbackLocation) {
   return fallbackLocation;
 }
 
-function renderBackBouncePage(fallbackLocation) {
-  const safeFallback = escapeXml(fallbackLocation);
-
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Returning...</title>
-    <meta http-equiv="refresh" content="2;url=${safeFallback}" />
-    <style>
-      :root {
-        color-scheme: dark;
-      }
-      body {
-        margin: 0;
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
-        background: #020617;
-        color: #f8fafc;
-        font: 16px/1.5 "Segoe UI", Arial, sans-serif;
-      }
-      main {
-        padding: 24px;
-        text-align: center;
-      }
-      a {
-        color: #fbbf24;
-      }
-    </style>
-  </head>
-  <body>
-    <main>
-      <p>Returning to the previous page...</p>
-      <p><a href="${safeFallback}">Continue manually</a></p>
-    </main>
-    <script>
-      const fallback = ${JSON.stringify(fallbackLocation)};
-      window.location.replace(fallback);
-    </script>
-  </body>
-</html>`;
-}
-
-function renderRateLimitBouncePage(fallbackLocation, retryAfterMs) {
-  const safeFallback = escapeXml(fallbackLocation);
-  const retrySeconds = Math.max(1, Math.ceil(retryAfterMs / 1000));
-
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Slow Down</title>
-    <meta http-equiv="refresh" content="${retrySeconds};url=${safeFallback}" />
-    <style>
-      :root {
-        color-scheme: dark;
-      }
-      body {
-        margin: 0;
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
-        background: #020617;
-        color: #f8fafc;
-        font: 16px/1.5 "Segoe UI", Arial, sans-serif;
-      }
-      main {
-        width: min(520px, calc(100vw - 32px));
-        padding: 24px;
-        text-align: center;
-      }
-      a {
-        color: #fbbf24;
-      }
-      strong {
-        color: #fbbf24;
-      }
-    </style>
-  </head>
-  <body>
-    <main>
-      <p><strong>Slow down a little.</strong></p>
-      <p>This lobby is temporarily throttled for repeated actions from the same IP. Try again in about ${retrySeconds}s.</p>
-      <p><a href="${safeFallback}">Return now</a></p>
-    </main>
-    <script>
-      const fallback = ${JSON.stringify(fallbackLocation)};
-      const retryAfterMs = ${JSON.stringify(retrySeconds * 1000)};
-      window.setTimeout(() => window.location.replace(fallback), retryAfterMs);
-    </script>
-  </body>
-</html>`;
-}
-
 function sendBackBounce(response, fallbackLocation) {
-  sendHtml(response, renderBackBouncePage(createFreshFallbackLocation(fallbackLocation)));
+  sendRedirect(response, createFreshFallbackLocation(fallbackLocation));
 }
 
 function sendRateLimitedBounce(response, fallbackLocation, retryAfterMs) {
   const retrySeconds = Math.max(1, Math.ceil(retryAfterMs / 1000));
-  sendHtml(response, renderRateLimitBouncePage(createFreshFallbackLocation(fallbackLocation), retryAfterMs), 429, {
+  sendRedirect(response, createFreshFallbackLocation(fallbackLocation), 303, {
     "Retry-After": String(retrySeconds)
   });
 }
@@ -509,8 +446,8 @@ function renderCookieHome(state, defaultRedirectUrl, gameSlug, lobbySlug, option
   const gameLabel = formatSlugLabel(gameSlug);
   const canonicalLobbyPath = buildLobbyPath(gameSlug, lobbySlug);
   const hint = defaultRedirectUrl
-    ? `Default redirect: <code>${escapeXml(defaultRedirectUrl)}</code>`
-    : "Set README_REDIRECT_URL to make action routes bounce back to GitHub automatically.";
+    ? `Default redirect target: <code>${escapeXml(defaultRedirectUrl)}</code>`
+    : "Set README_REDIRECT_URL to send action routes straight back to GitHub.";
   const aliasHint = options.isLegacyAlias || options.isDefaultLobbyAlias
     ? `<p><strong>Canonical lobby path:</strong> <code>${escapeXml(canonicalLobbyPath)}</code></p>`
     : "";
@@ -558,7 +495,7 @@ function renderCookieHome(state, defaultRedirectUrl, gameSlug, lobbySlug, option
   <body>
     <main>
       <h1>${escapeXml(gameLabel)} Lobby</h1>
-      <p>This server powers interactive GitHub README games by storing per-lobby state, serving dynamic SVGs, and redirecting back to GitHub after every action.</p>
+      <p>This server powers interactive GitHub README games by storing per-lobby state, serving dynamic SVGs, and immediately redirecting back after every action.</p>
       <p><strong>Game slug:</strong> <code>${escapeXml(gameSlug)}</code></p>
       <p><strong>Lobby ID:</strong> <code>${escapeXml(lobbySlug)}</code></p>
       <p><strong>Clicks:</strong> ${escapeXml(formatExactNumber(state.clicks))} (${escapeXml(formatCompactNumber(state.clicks))})</p>
