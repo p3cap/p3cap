@@ -45,7 +45,7 @@
 </table>
 
 <h4>DOOM-PAD 94</h4>
-<p>Primitive README FPS with flat-shaded corridors, sprite enemies, and deterministic turn-step input.</p>
+<p>Primitive README FPS with generated mazes, bigger floors as you descend, and deterministic turn-step input.</p>
 <sub>Change `/doom/global/` to `/doom/&lt;YOUR_LOBBY&gt;/` in the URLs if you want a private run.</sub>
 
 </div>
@@ -56,7 +56,8 @@
 - The game is a tiny corridor crawler dressed like a 1990s DOS shooter.
 - Every click performs exactly one deterministic action: move, turn, strafe, shoot, or wait.
 - After your action resolves, the world advances one step and enemies take theirs.
-- The screen is meant to feel like a handheld console window with a fake low-res FPS display.
+- Each new floor generates a fresh random maze, and later floors expand the map size.
+- The renderer swaps between retro texture variants for walls, floors, ceilings, enemies, and the gun.
 - The lobby lives in the URL, so `doom/global` and `doom/my-squad` are separate saves.
 
 </details>
@@ -74,9 +75,10 @@
 <details>
 <summary>Manual textures</summary>
 
-- Drop your own wall texture files into `Server/assets/doom/`.
-- Supported names are `wall-front.*`, `wall-side.*`, `ceiling.*`, and `floor.*`.
-- If a texture is missing, the renderer falls back to flat shading instead of generating noisy patterns.
+- Drop your own texture files into `Server/assets/doom/`.
+- Supported prefixes are `wall-front`, `wall-side`, `ceiling`, `floor`, `enemy-imp`, and `gun`.
+- You can add multiple variants like `wall-front-a.png` and `wall-front-b.png`; the renderer will pick from them automatically.
+- If a texture prefix is missing, Doom falls back to built-in retro textures.
 
 </details>
 

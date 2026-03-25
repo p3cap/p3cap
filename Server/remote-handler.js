@@ -7,10 +7,8 @@ const {
   normalizeGameSlug,
   normalizeLobbySlug
 } = require("./app");
-const { createFreshDoomState, normalizeDoomState } = require("./doom-game");
-const { createRedisJsonStateStore } = require("./json-state-store");
+const { getGameDefinition } = require("./game-registry");
 const { createRedisRateLimiter, normalizeCooldownMs } = require("./rate-limiter");
-const { createRedisStateStore } = require("./state-store");
 
 let cachedHandler = null;
 
@@ -51,18 +49,15 @@ function getHandler() {
       const stateKey = normalizedGameSlug === defaultGameSlug && normalizedLobbySlug === defaultLobbySlug
         ? baseStateKey
         : `${baseStateKey}:${normalizedGameSlug}:${normalizedLobbySlug}`;
+      const game = getGameDefinition(normalizedGameSlug);
+      if (!game || typeof game.createRedisStateStore !== "function") {
+        throw new Error(`Unsupported game slug: ${normalizedGameSlug}`);
+      }
 
-      const stateStore = normalizedGameSlug === "doom"
-        ? createRedisJsonStateStore({
-          redis,
-          key: stateKey,
-          createFreshState: createFreshDoomState,
-          normalizeState: normalizeDoomState
-        })
-        : createRedisStateStore({
-          redis,
-          key: stateKey
-        });
+      const stateStore = game.createRedisStateStore({
+        redis,
+        key: stateKey
+      });
 
       stateStoreCache.set(cacheKey, stateStore);
     }

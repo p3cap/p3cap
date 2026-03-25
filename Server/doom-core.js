@@ -1,0 +1,708 @@
+const DIRECTION_ORDER = ["N", "E", "S", "W"];
+const DIRECTION_DELTAS = {
+  N: { x: 0, y: -1 },
+  E: { x: 1, y: 0 },
+  S: { x: 0, y: 1 },
+  W: { x: -1, y: 0 }
+};
+
+const ACTION_LOGS = {
+  doomForward: "You step forward.",
+  doomBackward: "You step back.",
+  doomStrafeLeft: "You strafe left.",
+  doomStrafeRight: "You strafe right.",
+  doomTurnLeft: "You turn left.",
+  doomTurnRight: "You turn right.",
+  doomWait: "You wait one beat."
+};
+
+const DEFAULT_THEME_NAME = "rust";
+const THEME_NAMES = ["rust", "tech", "crypt"];
+
+function escapeXml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function clampNumber(value, fallback, minimum = Number.NEGATIVE_INFINITY, maximum = Number.POSITIVE_INFINITY) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+
+  return Math.min(maximum, Math.max(minimum, Math.floor(numeric)));
+}
+
+function pointKey(x, y) {
+  return `${x},${y}`;
+}
+
+function hashString(input) {
+  let hash = 2166136261;
+
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+}
+
+function mixSeed(...parts) {
+  return hashString(parts.map((part) => String(part)).join("|")) || 1;
+}
+
+function createSeededRng(seed) {
+  let state = seed % 2147483647;
+  if (state <= 0) {
+    state += 2147483646;
+  }
+
+  return function nextRandom() {
+    state = (state * 16807) % 2147483647;
+    return (state - 1) / 2147483646;
+  };
+}
+
+function shuffleInPlace(items, rng) {
+  for (let index = items.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(rng() * (index + 1));
+    [items[index], items[swapIndex]] = [items[swapIndex], items[index]];
+  }
+
+  return items;
+}
+
+function createRandomSeed() {
+  return mixSeed(Date.now(), Math.random(), process.pid || 0);
+}
+
+function normalizeThemeName(candidate) {
+  return THEME_NAMES.includes(candidate) ? candidate : DEFAULT_THEME_NAME;
+}
+
+function isFacing(value) {
+  return DIRECTION_ORDER.includes(value);
+}
+
+function rotateFacing(facing, direction) {
+  const currentIndex = DIRECTION_ORDER.indexOf(facing);
+  const delta = direction === "left" ? -1 : 1;
+  return DIRECTION_ORDER[(currentIndex + delta + DIRECTION_ORDER.length) % DIRECTION_ORDER.length];
+}
+
+function getForwardDelta(facing) {
+  return DIRECTION_DELTAS[facing] || DIRECTION_DELTAS.N;
+}
+
+function getLeftDelta(facing) {
+  const forward = getForwardDelta(facing);
+  return {
+    x: forward.y,
+    y: -forward.x
+  };
+}
+
+function getRightDelta(facing) {
+  const left = getLeftDelta(facing);
+  return {
+    x: -left.x,
+    y: -left.y
+  };
+}
+
+function buildLobbyPath(gameSlug, lobbySlug, suffix = "") {
+  return `/${gameSlug}/${lobbySlug}${suffix}`;
+}
+
+function getFloorDimensions(floor) {
+  const growth = Math.min(6, Math.max(0, floor - 1));
+  return {
+    width: 11 + (growth * 2),
+    height: 9 + (growth * 2)
+  };
+}
+
+function createWallGrid(width, height) {
+  return Array.from({ length: height }, () => Array.from({ length: width }, () => "#"));
+}
+
+function carveMaze(grid, x, y, rng) {
+  grid[y][x] = ".";
+  const directions = shuffleInPlace([
+    { x: 0, y: -2 },
+    { x: 2, y: 0 },
+    { x: 0, y: 2 },
+    { x: -2, y: 0 }
+  ], rng);
+
+  for (const direction of directions) {
+    const targetX = x + direction.x;
+    const targetY = y + direction.y;
+
+    if (
+      targetY <= 0 ||
+      targetY >= grid.length - 1 ||
+      targetX <= 0 ||
+      targetX >= grid[0].length - 1 ||
+      grid[targetY][targetX] !== "#"
+    ) {
+      continue;
+    }
+
+    grid[y + Math.floor(direction.y / 2)][x + Math.floor(direction.x / 2)] = ".";
+    carveMaze(grid, targetX, targetY, rng);
+  }
+}
+
+function addLoops(grid, rng, count) {
+  const candidates = [];
+
+  for (let y = 1; y < grid.length - 1; y += 1) {
+    for (let x = 1; x < grid[0].length - 1; x += 1) {
+      if (grid[y][x] !== "#") {
+        continue;
+      }
+
+      const openHorizontal = grid[y][x - 1] === "." && grid[y][x + 1] === ".";
+      const openVertical = grid[y - 1][x] === "." && grid[y + 1][x] === ".";
+
+      if (openHorizontal || openVertical) {
+        candidates.push({ x, y });
+      }
+    }
+  }
+
+  shuffleInPlace(candidates, rng);
+
+  for (const candidate of candidates.slice(0, count)) {
+    grid[candidate.y][candidate.x] = ".";
+  }
+}
+
+function mapRowsFromGrid(grid) {
+  return grid.map((row) => row.join(""));
+}
+
+function isWallAt(mapRows, x, y) {
+  if (y < 0 || y >= mapRows.length) {
+    return true;
+  }
+
+  const row = mapRows[y];
+  return x < 0 || x >= row.length || row[x] === "#";
+}
+
+function isOpenAt(mapRows, x, y) {
+  return !isWallAt(mapRows, x, y);
+}
+
+function createDistanceMap(mapRows, start) {
+  const queue = [{ x: start.x, y: start.y }];
+  const distances = new Map([[pointKey(start.x, start.y), 0]]);
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    const baseDistance = distances.get(pointKey(current.x, current.y)) || 0;
+
+    for (const delta of Object.values(DIRECTION_DELTAS)) {
+      const nextX = current.x + delta.x;
+      const nextY = current.y + delta.y;
+      const key = pointKey(nextX, nextY);
+
+      if (isWallAt(mapRows, nextX, nextY) || distances.has(key)) {
+        continue;
+      }
+
+      distances.set(key, baseDistance + 1);
+      queue.push({ x: nextX, y: nextY });
+    }
+  }
+
+  return distances;
+}
+
+function createEnemy({ id, x, y, hp = 1 }) {
+  return {
+    id,
+    type: "imp",
+    x,
+    y,
+    hp
+  };
+}
+
+function pickTextureTheme(mapSeed, floor) {
+  return THEME_NAMES[mixSeed("theme", mapSeed, floor) % THEME_NAMES.length] || DEFAULT_THEME_NAME;
+}
+
+function createEnemiesForFloor(mapRows, start, floor, mapSeed) {
+  const rng = createSeededRng(mixSeed("enemies", mapSeed, floor));
+  const distanceMap = createDistanceMap(mapRows, start);
+  const minimumDistance = Math.max(5, Math.floor((mapRows.length + mapRows[0].length) / 4));
+  const candidateCells = Array.from(distanceMap.entries())
+    .map(([key, distance]) => {
+      const [x, y] = key.split(",").map(Number);
+      return { x, y, distance };
+    })
+    .filter((cell) => cell.distance >= minimumDistance);
+
+  shuffleInPlace(candidateCells, rng);
+
+  const enemies = [];
+  const count = Math.min(10, 2 + floor);
+  const hp = floor >= 6 ? 3 : floor >= 4 ? 2 : 1;
+
+  for (const cell of candidateCells) {
+    const tooClose = enemies.some((enemy) => Math.abs(enemy.x - cell.x) + Math.abs(enemy.y - cell.y) < 2);
+    if (tooClose) {
+      continue;
+    }
+
+    enemies.push(createEnemy({
+      id: `imp-${floor}-${enemies.length + 1}`,
+      x: cell.x,
+      y: cell.y,
+      hp
+    }));
+
+    if (enemies.length >= count) {
+      break;
+    }
+  }
+
+  return enemies;
+}
+
+function generateFloorLayout(floor, mapSeed) {
+  const dimensions = getFloorDimensions(floor);
+  const rng = createSeededRng(mixSeed("layout", floor, mapSeed, dimensions.width, dimensions.height));
+  const grid = createWallGrid(dimensions.width, dimensions.height);
+  const playerStart = {
+    x: 1,
+    y: dimensions.height - 2,
+    facing: "N"
+  };
+
+  carveMaze(grid, playerStart.x, playerStart.y, rng);
+  grid[playerStart.y][playerStart.x] = ".";
+  grid[Math.max(1, playerStart.y - 1)][playerStart.x] = ".";
+  grid[playerStart.y][Math.min(dimensions.width - 2, playerStart.x + 1)] = ".";
+  addLoops(grid, rng, Math.max(3, floor + 2));
+
+  const mapRows = mapRowsFromGrid(grid);
+
+  return {
+    mapRows,
+    playerStart,
+    enemies: createEnemiesForFloor(mapRows, playerStart, floor, mapSeed),
+    textureTheme: pickTextureTheme(mapSeed, floor)
+  };
+}
+
+function parseMapRows(source, fallbackRows) {
+  const raw = Array.isArray(source)
+    ? source
+    : typeof source === "string"
+      ? (() => {
+        try {
+          return JSON.parse(source);
+        } catch (error) {
+          return [];
+        }
+      })()
+      : [];
+
+  if (!Array.isArray(raw) || raw.length < 5) {
+    return fallbackRows;
+  }
+
+  const rows = raw.map((row) => String(row));
+  const width = rows[0] ? rows[0].length : 0;
+
+  if (width < 5 || rows.some((row) => row.length !== width || /[^#.]/.test(row))) {
+    return fallbackRows;
+  }
+
+  if (
+    rows[0].includes(".") ||
+    rows[rows.length - 1].includes(".") ||
+    rows.some((row) => row[0] !== "#" || row[row.length - 1] !== "#")
+  ) {
+    return fallbackRows;
+  }
+
+  return rows;
+}
+
+function parseEnemies(source, mapRows, floor, fallbackEnemies) {
+  const raw = Array.isArray(source)
+    ? source
+    : typeof source === "string"
+      ? (() => {
+        try {
+          return JSON.parse(source);
+        } catch (error) {
+          return [];
+        }
+      })()
+      : [];
+
+  const enemies = raw
+    .map((enemy, index) => ({
+      id: typeof enemy.id === "string" && enemy.id.trim() ? enemy.id.trim() : `imp-${floor}-${index + 1}`,
+      type: "imp",
+      x: clampNumber(enemy.x, 1, 1, mapRows[0].length - 2),
+      y: clampNumber(enemy.y, 1, 1, mapRows.length - 2),
+      hp: clampNumber(enemy.hp, 1, 1, 9)
+    }))
+    .filter((enemy) => !isWallAt(mapRows, enemy.x, enemy.y));
+
+  return enemies.length > 0 ? enemies : fallbackEnemies;
+}
+
+function createDoomFloorState({
+  floor = 1,
+  score = 0,
+  health = 100,
+  ammo = 6,
+  keys = 0,
+  turn = 0,
+  mapSeed = createRandomSeed(),
+  lastLog = ""
+} = {}) {
+  const layout = generateFloorLayout(floor, mapSeed);
+
+  return {
+    floor,
+    score,
+    health,
+    ammo,
+    keys,
+    turn,
+    status: "playing",
+    mapSeed,
+    textureTheme: layout.textureTheme,
+    mapRows: layout.mapRows,
+    player: {
+      x: layout.playerStart.x,
+      y: layout.playerStart.y,
+      facing: layout.playerStart.facing
+    },
+    enemies: layout.enemies,
+    lastLog: lastLog || `Entered floor ${floor}.`,
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function createFreshDoomState(overrides = {}) {
+  return createDoomFloorState({
+    floor: 1,
+    score: 0,
+    health: 100,
+    ammo: 6,
+    keys: 0,
+    turn: 0,
+    mapSeed: createRandomSeed(),
+    lastLog: "A silent hallway waits.",
+    ...overrides
+  });
+}
+
+function normalizeDoomState(state) {
+  const source = state || {};
+  const floor = clampNumber(source.floor, 1, 1, 99);
+  const fallbackSeed = clampNumber(source.mapSeed, mixSeed("legacy", floor, source.score || 0, source.turn || 0), 1, 2147483646);
+  const generated = generateFloorLayout(floor, fallbackSeed);
+  const mapRows = parseMapRows(source.mapRows, generated.mapRows);
+  const fallbackPlayer = generated.playerStart;
+  const player = source.player && typeof source.player === "object" ? source.player : {};
+  const normalizedPlayerX = clampNumber(player.x, fallbackPlayer.x, 1, mapRows[0].length - 2);
+  const normalizedPlayerY = clampNumber(player.y, fallbackPlayer.y, 1, mapRows.length - 2);
+  const enemies = parseEnemies(source.enemies, mapRows, floor, generated.enemies)
+    .filter((enemy) => enemy.hp > 0)
+    .filter((enemy) => enemy.x !== normalizedPlayerX || enemy.y !== normalizedPlayerY);
+
+  return {
+    floor,
+    score: clampNumber(source.score, 0, 0, 999999),
+    health: clampNumber(source.health, 100, 0, 100),
+    ammo: clampNumber(source.ammo, 6, 0, 99),
+    keys: clampNumber(source.keys, 0, 0, 9),
+    turn: clampNumber(source.turn, 0, 0, 999999),
+    status: source.status === "dead" ? "dead" : "playing",
+    mapSeed: fallbackSeed,
+    textureTheme: normalizeThemeName(source.textureTheme || generated.textureTheme),
+    mapRows,
+    player: {
+      x: isOpenAt(mapRows, normalizedPlayerX, normalizedPlayerY) ? normalizedPlayerX : fallbackPlayer.x,
+      y: isOpenAt(mapRows, normalizedPlayerX, normalizedPlayerY) ? normalizedPlayerY : fallbackPlayer.y,
+      facing: isFacing(player.facing) ? player.facing : fallbackPlayer.facing
+    },
+    enemies,
+    lastLog: typeof source.lastLog === "string" && source.lastLog.trim()
+      ? source.lastLog.trim()
+      : "A silent hallway waits.",
+    updatedAt: typeof source.updatedAt === "string" && source.updatedAt.trim()
+      ? source.updatedAt.trim()
+      : new Date().toISOString()
+  };
+}
+
+function cloneState(state) {
+  return JSON.parse(JSON.stringify(state));
+}
+
+function getEnemyAt(state, x, y) {
+  return state.enemies.find((enemy) => enemy.hp > 0 && enemy.x === x && enemy.y === y) || null;
+}
+
+function canPlayerMoveTo(state, x, y) {
+  return isOpenAt(state.mapRows, x, y) && !getEnemyAt(state, x, y);
+}
+
+function movePlayer(state, delta, fallbackLog) {
+  const targetX = state.player.x + delta.x;
+  const targetY = state.player.y + delta.y;
+
+  if (!canPlayerMoveTo(state, targetX, targetY)) {
+    state.lastLog = `${fallbackLog} A wall or monster blocks the way.`;
+    return;
+  }
+
+  state.player.x = targetX;
+  state.player.y = targetY;
+  state.lastLog = fallbackLog;
+}
+
+function traceShot(state) {
+  const delta = getForwardDelta(state.player.facing);
+  let x = state.player.x + delta.x;
+  let y = state.player.y + delta.y;
+
+  while (!isWallAt(state.mapRows, x, y)) {
+    const enemy = getEnemyAt(state, x, y);
+    if (enemy) {
+      return enemy;
+    }
+
+    x += delta.x;
+    y += delta.y;
+  }
+
+  return null;
+}
+
+function chooseEnemyMove(enemy, state, occupied) {
+  const diffX = state.player.x - enemy.x;
+  const diffY = state.player.y - enemy.y;
+  const candidateDeltas = [];
+
+  if (Math.abs(diffX) >= Math.abs(diffY)) {
+    if (diffX !== 0) {
+      candidateDeltas.push({ x: Math.sign(diffX), y: 0 });
+    }
+    if (diffY !== 0) {
+      candidateDeltas.push({ x: 0, y: Math.sign(diffY) });
+    }
+  } else {
+    if (diffY !== 0) {
+      candidateDeltas.push({ x: 0, y: Math.sign(diffY) });
+    }
+    if (diffX !== 0) {
+      candidateDeltas.push({ x: Math.sign(diffX), y: 0 });
+    }
+  }
+
+  for (const delta of candidateDeltas) {
+    const targetX = enemy.x + delta.x;
+    const targetY = enemy.y + delta.y;
+    const targetKey = pointKey(targetX, targetY);
+
+    if (isWallAt(state.mapRows, targetX, targetY) || occupied.has(targetKey)) {
+      continue;
+    }
+
+    if (targetX === state.player.x && targetY === state.player.y) {
+      continue;
+    }
+
+    return { x: targetX, y: targetY };
+  }
+
+  return null;
+}
+
+function advanceEnemies(state) {
+  let damage = 0;
+  let movers = 0;
+  const occupied = new Set(
+    state.enemies
+      .filter((enemy) => enemy.hp > 0)
+      .map((enemy) => pointKey(enemy.x, enemy.y))
+  );
+
+  for (const enemy of state.enemies) {
+    if (enemy.hp <= 0) {
+      continue;
+    }
+
+    const distance = Math.abs(enemy.x - state.player.x) + Math.abs(enemy.y - state.player.y);
+    if (distance === 1) {
+      damage += 10 + (enemy.hp * 2);
+      continue;
+    }
+
+    occupied.delete(pointKey(enemy.x, enemy.y));
+    const nextPosition = chooseEnemyMove(enemy, state, occupied);
+    if (nextPosition) {
+      enemy.x = nextPosition.x;
+      enemy.y = nextPosition.y;
+      movers += 1;
+    }
+    occupied.add(pointKey(enemy.x, enemy.y));
+  }
+
+  if (damage > 0) {
+    state.health = Math.max(0, state.health - damage);
+  }
+
+  return {
+    damage,
+    movers
+  };
+}
+
+function advanceFloor(state) {
+  const nextFloor = state.floor + 1;
+  const nextSeed = mixSeed(state.mapSeed, nextFloor, state.turn, state.score, state.health, state.ammo);
+
+  return createDoomFloorState({
+    floor: nextFloor,
+    score: state.score + 250,
+    health: Math.min(100, state.health + 15),
+    ammo: Math.min(99, state.ammo + 4),
+    keys: state.keys,
+    turn: state.turn,
+    mapSeed: nextSeed,
+    lastLog: `Floor clear. Descending to floor ${nextFloor}.`
+  });
+}
+
+function applyDoomAction(currentState, route) {
+  const state = normalizeDoomState(cloneState(currentState));
+
+  if (state.status === "dead" || state.health <= 0) {
+    return createFreshDoomState({
+      lastLog: "Marine redeployed."
+    });
+  }
+
+  if (route === "doomTurnLeft") {
+    state.player.facing = rotateFacing(state.player.facing, "left");
+    state.lastLog = ACTION_LOGS[route];
+  } else if (route === "doomTurnRight") {
+    state.player.facing = rotateFacing(state.player.facing, "right");
+    state.lastLog = ACTION_LOGS[route];
+  } else if (route === "doomForward") {
+    movePlayer(state, getForwardDelta(state.player.facing), ACTION_LOGS[route]);
+  } else if (route === "doomBackward") {
+    const forward = getForwardDelta(state.player.facing);
+    movePlayer(state, { x: -forward.x, y: -forward.y }, ACTION_LOGS[route]);
+  } else if (route === "doomStrafeLeft") {
+    movePlayer(state, getLeftDelta(state.player.facing), ACTION_LOGS[route]);
+  } else if (route === "doomStrafeRight") {
+    movePlayer(state, getRightDelta(state.player.facing), ACTION_LOGS[route]);
+  } else if (route === "doomShoot") {
+    if (state.ammo <= 0) {
+      state.lastLog = "Click. Out of ammo.";
+    } else {
+      state.ammo -= 1;
+      const enemy = traceShot(state);
+      if (enemy) {
+        enemy.hp = Math.max(0, enemy.hp - 1);
+        if (enemy.hp <= 0) {
+          state.score += 100;
+          state.lastLog = "You blast an imp.";
+        } else {
+          state.score += 35;
+          state.lastLog = "The imp staggers.";
+        }
+      } else {
+        state.lastLog = "Shot echoes into the dark.";
+      }
+    }
+  } else {
+    state.lastLog = ACTION_LOGS[route] || "You hold position.";
+  }
+
+  state.turn += 1;
+  state.enemies = state.enemies.filter((enemy) => enemy.hp > 0);
+
+  if (state.enemies.length === 0) {
+    return advanceFloor(state);
+  }
+
+  const enemyTurn = advanceEnemies(state);
+  if (state.health <= 0) {
+    state.status = "dead";
+    state.lastLog = enemyTurn.damage > 0
+      ? `Imps tear you apart for ${enemyTurn.damage}. Press any button to restart.`
+      : "You collapse in the dark. Press any button to restart.";
+    return state;
+  }
+
+  if (state.enemies.length === 0) {
+    return advanceFloor(state);
+  }
+
+  if (enemyTurn.damage > 0) {
+    state.lastLog = `${state.lastLog} Imps hit for ${enemyTurn.damage}.`;
+  } else if (enemyTurn.movers > 0) {
+    state.lastLog = `${state.lastLog} Shapes rush through the maze.`;
+  }
+
+  return state;
+}
+
+function getTileInDirection(state, depth, offset = 0) {
+  const forward = getForwardDelta(state.player.facing);
+  const right = getRightDelta(state.player.facing);
+  const x = state.player.x + (forward.x * depth) + (right.x * offset);
+  const y = state.player.y + (forward.y * depth) + (right.y * offset);
+
+  return {
+    x,
+    y,
+    wall: isWallAt(state.mapRows, x, y),
+    enemy: getEnemyAt(state, x, y)
+  };
+}
+
+module.exports = {
+  ACTION_LOGS,
+  DEFAULT_THEME_NAME,
+  DIRECTION_ORDER,
+  buildLobbyPath,
+  clampNumber,
+  createFreshDoomState,
+  escapeXml,
+  getEnemyAt,
+  getFloorDimensions,
+  getForwardDelta,
+  getLeftDelta,
+  getRightDelta,
+  getTileInDirection,
+  hashString,
+  isFacing,
+  isWallAt,
+  mixSeed,
+  normalizeDoomState,
+  normalizeThemeName,
+  pointKey,
+  applyDoomAction
+};

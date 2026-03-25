@@ -8,10 +8,8 @@ const {
   normalizeGameSlug,
   normalizeLobbySlug
 } = require("./app");
-const { createFreshDoomState, normalizeDoomState } = require("./doom-game");
-const { createFileJsonStateStore } = require("./json-state-store");
+const { getGameDefinition } = require("./game-registry");
 const { createMemoryRateLimiter, normalizeCooldownMs } = require("./rate-limiter");
-const { createFileStateStore } = require("./state-store");
 
 const PORT = Number(process.env.PORT || 3000);
 const STATE_FILE = process.env.STATE_FILE || path.join(__dirname, "data", "state.json");
@@ -42,15 +40,14 @@ function getStateStore(gameSlug, lobbySlug) {
 
   if (!stateStoreCache.has(cacheKey)) {
     const filePath = resolveStateFilePath(normalizedGameSlug, normalizedLobbySlug);
-    const stateStore = normalizedGameSlug === "doom"
-      ? createFileJsonStateStore({
-        filePath,
-        createFreshState: createFreshDoomState,
-        normalizeState: normalizeDoomState
-      })
-      : createFileStateStore({
-        filePath
-      });
+    const game = getGameDefinition(normalizedGameSlug);
+    if (!game || typeof game.createFileStateStore !== "function") {
+      throw new Error(`Unsupported game slug: ${normalizedGameSlug}`);
+    }
+
+    const stateStore = game.createFileStateStore({
+      filePath
+    });
 
     stateStoreCache.set(cacheKey, stateStore);
   }
