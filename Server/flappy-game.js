@@ -1,17 +1,22 @@
+const fs = require("fs");
+const path = require("path");
 const { createFileJsonStateStore, createRedisJsonStateStore } = require("./json-state-store");
 
 const slug = "flappy";
 const CYCLE_MS = 2200;
 const IDEAL_TAP_MS = 1150;
-const PERFECT_WINDOW_MS = 120;
-const GOOD_WINDOW_MS = 260;
-const MAX_WINDOW_MS = 460;
+const PERFECT_WINDOW_MS = 150;
+const GOOD_WINDOW_MS = 320;
+const MAX_WINDOW_MS = 560;
 const LANE_Y = [44, 72, 100, 128, 156];
 const GAP_HEIGHT = 64;
 const PIPE_WIDTH = 74;
 const PIPE_HEAD_WIDTH = 90;
 const PIPE_START_X = 520;
 const PIPE_EXIT_X = -94;
+const BIRD_TEXTURE_DIR = path.join(__dirname, "assets", "flappy");
+const SUPPORTED_TEXTURE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"];
+const birdTextureCache = new Map();
 
 const routeMap = new Map([
   ["api/state", "state"],
@@ -63,6 +68,80 @@ function buildLobbyPath(gameSlug, lobbySlug, suffix = "") {
   return `/${gameSlug}/${lobbySlug}${suffix}`;
 }
 
+function svgDataUri(svgMarkup) {
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgMarkup)}`;
+}
+
+function getMimeTypeForTexture(fileName) {
+  const extension = path.extname(fileName).toLowerCase();
+  if (extension === ".png") {
+    return "image/png";
+  }
+  if (extension === ".jpg" || extension === ".jpeg") {
+    return "image/jpeg";
+  }
+  if (extension === ".gif") {
+    return "image/gif";
+  }
+  if (extension === ".webp") {
+    return "image/webp";
+  }
+  if (extension === ".svg") {
+    return "image/svg+xml";
+  }
+
+  return "";
+}
+
+function createBuiltInBirdTexture() {
+  return svgDataUri(`<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="56" height="40" viewBox="0 0 56 40" shape-rendering="crispEdges">
+  <rect width="56" height="40" fill="transparent" />
+  <rect x="8" y="10" width="28" height="18" fill="#facc15" />
+  <rect x="32" y="14" width="10" height="10" fill="#fde047" />
+  <rect x="38" y="16" width="10" height="6" fill="#fb923c" />
+  <rect x="16" y="6" width="8" height="6" fill="#f59e0b" />
+  <rect x="20" y="14" width="4" height="4" fill="#111827" />
+  <rect x="4" y="16" width="8" height="6" fill="#f59e0b" />
+</svg>`);
+}
+
+function getBirdTextureUri() {
+  if (birdTextureCache.has("bird")) {
+    return birdTextureCache.get("bird");
+  }
+
+  let textureUri = "";
+
+  try {
+    if (fs.existsSync(BIRD_TEXTURE_DIR)) {
+      const candidates = fs.readdirSync(BIRD_TEXTURE_DIR)
+        .filter((fileName) => /^bird(?:-[a-z0-9_-]+)?\.(png|jpg|jpeg|webp|gif|svg)$/i.test(fileName))
+        .sort();
+
+      for (const candidate of candidates) {
+        const mimeType = getMimeTypeForTexture(candidate);
+        if (!mimeType) {
+          continue;
+        }
+
+        const filePath = path.join(BIRD_TEXTURE_DIR, candidate);
+        textureUri = `data:${mimeType};base64,${fs.readFileSync(filePath).toString("base64")}`;
+        break;
+      }
+    }
+  } catch (error) {
+    textureUri = "";
+  }
+
+  if (!textureUri) {
+    textureUri = createBuiltInBirdTexture();
+  }
+
+  birdTextureCache.set("bird", textureUri);
+  return textureUri;
+}
+
 function getGapLane(seed, obstacleIndex) {
   return hashString(`${seed}:${obstacleIndex}:lane`) % LANE_Y.length;
 }
@@ -77,6 +156,35 @@ function getGapTop(seed, obstacleIndex) {
 
 function getIdleLane(birdLane) {
   return Math.min(LANE_Y.length - 1, birdLane + 1);
+}
+
+function describePrediction(state) {
+  const firstGap = getGapTop(state.seed, state.obstacleIndex);
+  const firstIdleLane = getIdleLane(state.birdLane);
+  const firstSurvives = firstIdleLane === firstGap.lane;
+
+  if (!firstSurvives) {
+    return {
+      firstGap,
+      firstIdleLane,
+      firstSurvives,
+      secondGap: null,
+      secondIdleLane: null,
+      secondSurvives: false
+    };
+  }
+
+  const secondGap = getGapTop(state.seed, state.obstacleIndex + 1);
+  const secondIdleLane = getIdleLane(firstIdleLane);
+
+  return {
+    firstGap,
+    firstIdleLane,
+    firstSurvives,
+    secondGap,
+    secondIdleLane,
+    secondSurvives: secondIdleLane === secondGap.lane
+  };
 }
 
 function createFreshState(overrides = {}) {
@@ -262,15 +370,11 @@ function applyTap(rawState) {
 function renderBird(state, fromLane, toLane, durationMs) {
   const startY = LANE_Y[fromLane];
   const endY = LANE_Y[toLane];
+  const birdTexture = getBirdTextureUri();
   return `
   <g transform="translate(138 ${startY - 14})">
     <animateTransform attributeName="transform" type="translate" values="138 ${startY - 14};138 ${endY - 14};138 ${endY - 14}" keyTimes="0;0.36;1" dur="${durationMs}ms" fill="freeze" />
-    <ellipse cx="20" cy="16" rx="20" ry="14" fill="#facc15" />
-    <ellipse cx="14" cy="13" rx="4" ry="4" fill="#111827" />
-    <polygon points="34,16 48,12 48,20" fill="#fb923c" />
-    <ellipse cx="20" cy="18" rx="10" ry="6" fill="#f59e0b">
-      <animate attributeName="ry" values="6;2;6" dur="0.22s" repeatCount="indefinite" />
-    </ellipse>
+    <image href="${escapeXml(birdTexture)}" x="0" y="0" width="52" height="38" preserveAspectRatio="none" image-rendering="pixelated" />
   </g>`;
 }
 
@@ -298,7 +402,7 @@ function renderPipe(gapTop, fromX, toX, durationMs, begin = "0s") {
 function renderDeathOverlay(beginMs) {
   return `
   <g opacity="0">
-    <animate attributeName="opacity" values="0;0;1" keyTimes="0;0.86;1" dur="${CYCLE_MS}ms" fill="freeze" />
+    <animate attributeName="opacity" values="0;0;1" keyTimes="0;0.86;1" dur="${beginMs}ms" fill="freeze" />
     <rect x="0" y="0" width="620" height="260" fill="#020617" fill-opacity="0.78" />
     <text x="310" y="108" text-anchor="middle" fill="#f8fafc" font-size="34" font-family="'Trebuchet MS', Arial, sans-serif">You deid</text>
     <text x="310" y="138" text-anchor="middle" fill="#93c5fd" font-size="16" font-family="'Trebuchet MS', Arial, sans-serif">press flap to start a new game</text>
@@ -317,29 +421,40 @@ function renderViewSvg(rawState) {
 </svg>`;
   }
 
-  const upcomingGap = getGapTop(state.seed, state.obstacleIndex);
-  const idleLane = getIdleLane(state.birdLane);
-  const predictedCrash = idleLane !== upcomingGap.lane;
+  const prediction = describePrediction(state);
+  const upcomingGap = prediction.firstGap;
+  const predictedCrash = !prediction.firstSurvives;
   const birdFromLane = state.animationMode === "flap" ? state.previousBirdLane : state.birdLane;
-  const birdToLane = state.animationMode === "flap" ? state.birdLane : idleLane;
+  const birdToLane = state.animationMode === "flap" ? state.birdLane : prediction.firstIdleLane;
   const flapPipe = state.animationMode === "flap" && state.lastPassedGapLane >= 0
     ? getGapTop(state.seed, Math.max(0, state.obstacleIndex - 1))
     : null;
+  const tapBandWidth = Math.max(48, Math.round(((PIPE_START_X - PIPE_EXIT_X) * MAX_WINDOW_MS) / CYCLE_MS));
+  const tapBandX = 180 - Math.round(tapBandWidth / 2);
+  const nextPipePreview = !predictedCrash && prediction.secondGap
+    ? renderPipe(prediction.secondGap.top, PIPE_START_X + 250, 140, CYCLE_MS, "0s")
+    : "";
+  const predictionLine = !predictedCrash && prediction.secondGap
+    ? `<polyline points="164,${LANE_Y[state.birdLane]} 250,${LANE_Y[prediction.firstIdleLane]} 404,${LANE_Y[prediction.secondIdleLane]}" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="3" stroke-dasharray="6 5" />`
+    : `<line x1="164" y1="${LANE_Y[state.birdLane]}" x2="250" y2="${LANE_Y[prediction.firstIdleLane]}" stroke="#ffffff" stroke-opacity="0.45" stroke-width="3" stroke-dasharray="6 5" />`;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="620" height="260" viewBox="0 0 620 260" role="img" aria-label="README Flappy animated game screen">
   <rect width="620" height="260" fill="#38bdf8" />
   <rect y="188" width="620" height="72" fill="#22c55e" />
   <rect y="204" width="620" height="56" fill="#15803d" />
+  <rect x="${tapBandX}" y="28" width="${tapBandWidth}" height="160" fill="#f97316" fill-opacity="0.12" stroke="#fb923c" stroke-opacity="0.3" stroke-dasharray="6 4" />
+  ${predictionLine}
   <line x1="180" y1="28" x2="180" y2="188" stroke="#ffffff" stroke-opacity="0.35" stroke-dasharray="6 6" />
   <text x="180" y="22" text-anchor="middle" fill="#f8fafc" font-size="12" font-family="'Trebuchet MS', Arial, sans-serif">TAP LINE</text>
   ${flapPipe ? renderPipe(flapPipe.top, 184, -180, 900, "0s") : ""}
+  ${nextPipePreview}
   ${renderPipe(upcomingGap.top, PIPE_START_X, PIPE_EXIT_X, CYCLE_MS, "0s")}
   ${renderBird(state, birdFromLane, birdToLane, CYCLE_MS)}
   <text x="18" y="26" fill="#082f49" font-size="20" font-family="'Trebuchet MS', Arial, sans-serif">README-FLAPPY</text>
   <text x="18" y="50" fill="#082f49" font-size="15" font-family="'Trebuchet MS', Arial, sans-serif">score ${escapeXml(String(state.score))} | best ${escapeXml(String(state.bestScore))}</text>
   <text x="18" y="72" fill="#082f49" font-size="13" font-family="'Trebuchet MS', Arial, sans-serif">${escapeXml(state.lastLog)}</text>
-  <text x="18" y="92" fill="#082f49" font-size="12" font-family="'Trebuchet MS', Arial, sans-serif">timed flap + noise ${escapeXml(`${state.lastTapErrorMs}ms`)} | next gap ${escapeXml(String(upcomingGap.lane + 1))}</text>
+  <text x="18" y="92" fill="#082f49" font-size="12" font-family="'Trebuchet MS', Arial, sans-serif">noise ${escapeXml(`${state.lastTapErrorMs}ms`)} | gap ${escapeXml(String(upcomingGap.lane + 1))}${prediction.secondGap ? ` | next ${escapeXml(String(prediction.secondGap.lane + 1))}` : ""} | line preview on</text>
   ${predictedCrash ? renderDeathOverlay(CYCLE_MS) : ""}
 </svg>`;
 }
