@@ -21,14 +21,14 @@ const {
 } = require("./doom-textures");
 
 const ENEMY_SPRITE_BY_DEPTH = {
-  1: { x: 296, y: 144, w: 128, h: 168 },
-  2: { x: 322, y: 178, w: 76, h: 112 },
-  3: { x: 338, y: 200, w: 48, h: 74 },
-  4: { x: 346, y: 212, w: 30, h: 48 }
+  1: { cx: 360, baseY: 308, w: 126, h: 168 },
+  2: { cx: 360, baseY: 288, w: 86, h: 116 },
+  3: { cx: 360, baseY: 270, w: 56, h: 76 },
+  4: { cx: 360, baseY: 256, w: 38, h: 52 }
 };
-const VIEWPORT_BOX = { x: 20, y: 18, w: 680, h: 320 };
-const HUD_BOX = { x: 20, y: 348, w: 680, h: 52 };
-const RADAR_BOX = { x: 566, y: 26, w: 122, h: 88 };
+const VIEWPORT_BOX = { x: 10, y: 10, w: 700, h: 342 };
+const HUD_BOX = { x: 10, y: 360, w: 700, h: 40 };
+const RADAR_AREA = { w: 122, h: 88, inset: 10 };
 
 const slug = "doom";
 
@@ -142,11 +142,13 @@ function renderEnemySprite(state, enemy, depth) {
   if (!textureUri) {
     return "";
   }
+  const x = sprite.cx - Math.floor(sprite.w / 2);
+  const y = sprite.baseY - sprite.h;
 
   return `
   <g>
-    <ellipse cx="${sprite.x + Math.floor(sprite.w / 2)}" cy="${sprite.y + sprite.h - 4}" rx="${Math.floor(sprite.w * 0.33)}" ry="${Math.max(4, Math.floor(sprite.h * 0.08))}" fill="#000000" opacity="0.35" />
-    ${renderTexturedRect(sprite.x, sprite.y, sprite.w, sprite.h, textureUri)}
+    <ellipse cx="${sprite.cx}" cy="${sprite.baseY - 4}" rx="${Math.floor(sprite.w * 0.33)}" ry="${Math.max(4, Math.floor(sprite.h * 0.08))}" fill="#000000" opacity="0.35" />
+    <image href="${escapeXml(textureUri)}" x="${x}" y="${y}" width="${sprite.w}" height="${sprite.h}" preserveAspectRatio="xMidYMax meet" image-rendering="pixelated" />
   </g>`;
 }
 
@@ -183,7 +185,7 @@ function renderBottomStats(state, hpColor) {
 
   return slots.map((slot, index) => {
     const centerX = HUD_BOX.x + (slotWidth * index) + (slotWidth / 2);
-    return `<text x="${centerX}" y="380" text-anchor="middle" fill="${slot.color}" font-size="18" font-family="'Courier New', monospace">${escapeXml(slot.label)} ${escapeXml(slot.value)}</text>`;
+    return `<text x="${centerX}" y="386" text-anchor="middle" fill="${slot.color}" font-size="18" font-family="'Courier New', monospace">${escapeXml(slot.label)} ${escapeXml(slot.value)}</text>`;
   }).join("\n");
 }
 
@@ -198,13 +200,7 @@ function renderDeathViewSvg(state) {
     ? `<image href="${escapeXml(deathScreenUri)}" x="0" y="0" width="720" height="420" preserveAspectRatio="none" image-rendering="pixelated" />`
     : ""}
   ${bloodUri
-    ? `<image href="${escapeXml(bloodUri)}" x="330" y="278" width="60" height="20" preserveAspectRatio="none" image-rendering="pixelated">
-    <animate attributeName="x" values="330;270;210" dur="720ms" fill="freeze" />
-    <animate attributeName="y" values="278;250;224" dur="720ms" fill="freeze" />
-    <animate attributeName="width" values="60;180;300" dur="720ms" fill="freeze" />
-    <animate attributeName="height" values="20;74;118" dur="720ms" fill="freeze" />
-    <animate attributeName="opacity" values="0;1;0.96" dur="720ms" fill="freeze" />
-  </image>`
+    ? `<image href="${escapeXml(bloodUri)}" x="210" y="224" width="300" height="118" preserveAspectRatio="none" image-rendering="pixelated" />`
     : ""}
   <text x="360" y="160" text-anchor="middle" fill="#ffe4e6" font-size="40" font-family="'Courier New', monospace" opacity="0">You deid
     <animate attributeName="opacity" values="0;0;1" dur="760ms" fill="freeze" />
@@ -249,21 +245,17 @@ function renderViewEvent(state) {
   if (enemyDeathUri && state.viewEvent.type === "enemy-death") {
     const sprite = ENEMY_SPRITE_BY_DEPTH[state.viewEvent.depth];
     if (sprite) {
+      const x = sprite.cx - Math.floor(sprite.w / 2);
+      const y = sprite.baseY - sprite.h;
       enemyDeathEffect = `
-    <g opacity="0">
-      <animate attributeName="opacity" values="0;1;0.96;0" dur="620ms" fill="freeze" />
-      <image href="${escapeXml(enemyDeathUri)}" x="${sprite.x - 18}" y="${sprite.y - 12}" width="${sprite.w + 36}" height="${sprite.h + 28}" preserveAspectRatio="none" image-rendering="pixelated" />
-    </g>`;
+    <image href="${escapeXml(enemyDeathUri)}" x="${x - 18}" y="${y - 12}" width="${sprite.w + 36}" height="${sprite.h + 28}" preserveAspectRatio="xMidYMax meet" image-rendering="pixelated" />`;
     }
   }
 
   return `
     ${enemyDeathEffect}
     ${muzzleFlashUri
-      ? `<g opacity="0">
-      <animate attributeName="opacity" values="0;1;0.82;0.18;0" dur="480ms" fill="freeze" />
-      <image href="${escapeXml(muzzleFlashUri)}" x="408" y="218" width="92" height="54" preserveAspectRatio="none" image-rendering="pixelated" />
-    </g>`
+      ? `<image href="${escapeXml(muzzleFlashUri)}" x="408" y="218" width="92" height="54" preserveAspectRatio="none" image-rendering="pixelated" />`
       : ""}`;
 }
 
@@ -277,12 +269,12 @@ function renderViewSvg(rawState) {
   }
 
   const frames = [
-    { x: 46, y: 34, w: 628, h: 284 },
-    { x: 106, y: 62, w: 508, h: 232 },
-    { x: 166, y: 90, w: 388, h: 184 },
-    { x: 224, y: 116, w: 272, h: 142 },
-    { x: 278, y: 142, w: 164, h: 102 },
-    { x: 322, y: 166, w: 76, h: 68 }
+    { x: 26, y: 22, w: 668, h: 308 },
+    { x: 92, y: 50, w: 536, h: 252 },
+    { x: 156, y: 80, w: 408, h: 196 },
+    { x: 218, y: 108, w: 284, h: 150 },
+    { x: 278, y: 136, w: 164, h: 106 },
+    { x: 324, y: 160, w: 72, h: 70 }
   ];
   const corridorLayers = [];
   let frontWall = "";
@@ -335,12 +327,11 @@ function renderViewSvg(rawState) {
   const hpColor = state.health > 50 ? "#86efac" : state.health > 20 ? "#fde68a" : "#fca5a5";
   const mapWidth = state.mapRows[0].length;
   const mapHeight = state.mapRows.length;
-  const radarBox = RADAR_BOX;
-  const radarCell = Math.max(4, Math.min(8, Math.floor((radarBox.w - 12) / mapWidth), Math.floor((radarBox.h - 12) / mapHeight)));
+  const radarCell = Math.max(4, Math.min(8, Math.floor((RADAR_AREA.w - 2) / mapWidth), Math.floor((RADAR_AREA.h - 2) / mapHeight)));
   const radarPixelWidth = mapWidth * radarCell;
   const radarPixelHeight = mapHeight * radarCell;
-  const radarMapX = radarBox.x + Math.floor((radarBox.w - radarPixelWidth) / 2);
-  const radarMapY = radarBox.y + Math.floor((radarBox.h - radarPixelHeight) / 2);
+  const radarMapX = VIEWPORT_BOX.x + VIEWPORT_BOX.w - radarPixelWidth - RADAR_AREA.inset;
+  const radarMapY = VIEWPORT_BOX.y + RADAR_AREA.inset;
   const radarCenterX = radarMapX + (state.player.x * radarCell) + Math.floor(radarCell / 2);
   const radarCenterY = radarMapY + (state.player.y * radarCell) + Math.floor(radarCell / 2);
   const radarForward = getForwardDelta(state.player.facing);
@@ -369,8 +360,6 @@ function renderViewSvg(rawState) {
     ${renderGunSprite(state)}
     ${renderViewportFrame()}
     ${renderBottomStats(state, hpColor)}
-    <rect x="${radarBox.x}" y="${radarBox.y}" width="${radarBox.w}" height="${radarBox.h}" fill="#120906" stroke="#4a2317" stroke-width="3" />
-    <rect x="${radarMapX - 4}" y="${radarMapY - 4}" width="${radarPixelWidth + 8}" height="${radarPixelHeight + 8}" fill="#0b0908" />
     ${radarTiles}
     ${radarEnemies}
     <polygon points="${radarPlayerTriangle}" fill="#fde68a" />
