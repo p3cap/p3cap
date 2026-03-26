@@ -4,10 +4,6 @@
   <tr>
     <td align="center">
       <img src="https://p3cap.vercel.app/doom/global/images/view.svg" alt="Retro Doom-like game screen" width="590" />
-      <br />
-      <sub><strong>STEP MODE</strong> | one click = one world update | enemies only move after your input</sub>
-      <br />
-      <br />
       <a href="https://p3cap.vercel.app/doom/global/turn-left?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
         <img src="https://p3cap.vercel.app/doom/global/images/button-turn-left.svg" alt="Turn left" width="132" />
       </a>
@@ -38,40 +34,31 @@
 </table>
 
 <h4>README-DOOM</h4>
-<p>Primitive README FPS with generated mazes, bigger floors as you descend, and deterministic turn-step input.</p>
-<sub>Change `/doom/global/` to `/doom/&lt;YOUR_LOBBY&gt;/` in the URLs if you want a private run.</sub>
+<p>A <b>global game</b> on your profile README.</p>
+<sub>(Recommended desktop view from phone.)</sub>
 
 </div>
 
 <details>
-<summary>How this game works</summary>
+<summary>How to add this to your profile?</summary>
 
-- The game is a tiny corridor crawler dressed like a 1990s DOS shooter.
-- Every click performs exactly one deterministic action: move, turn, strafe, shoot, or wait.
-- After your action resolves, the world advances one step and enemies take theirs.
-- Each new floor generates a fresh random maze, and later floors expand the map size.
-- The renderer swaps between retro texture variants for walls, floors, ceilings, enemies, and the gun.
-- The lobby lives in the URL, so `doom/global` and `doom/my-squad` are separate saves.
-
-</details>
-
-<details>
-<summary>How to make your own lobby</summary>
-
-1. Copy this `README.md` into your profile repo.
-2. Replace `https%3A%2F%2Fgithub.com%2Fp3cap` in the links with your exact GitHub profile URL (URL-encoded).
-3. Change every `/doom/global/` segment to something like `/doom/my-lobby/`.
-4. Push the README and open your GitHub profile.
+1. Create a public repository named exactly like your GitHub username so GitHub shows its `README.md` on your profile.
+2. Copy this `README.md` file into your repo.
+3. Replace `p3cap` at te end of the links with your exact GitHub profile name.
+4. Optional: create your own lobby by inserting a lobby ID after `doom/` in every backend URL, for example `https://p3cap.vercel.app/doom/my-friends/click`.
+5. Cutomize your `README.md` if you want to (just keep my name on it pls).
+6. Commit and push the repository to GitHub.
+7. Refresh your profile page and the game will appear there.
+<sub>Got stuck? Contact <a src="https://github.com/p3cap">me</a>.</sub>
 
 </details>
 
 <details>
-<summary>Manual textures</summary>
+<summary>How it works?</summary>
 
-- Drop your own texture files into `Server/assets/doom/`.
-- Supported prefixes are `wall-front`, `wall-side`, `ceiling`, `floor`, `enemy-imp`, and `gun`.
-- You can add multiple variants like `wall-front-a.png` and `wall-front-b.png`; the renderer will pick from them automatically.
-- If a texture prefix is missing, Doom falls back to built-in retro textures.
+- When you click the cookie or upgrade, you open the Vercel-hosted server.
+- The server updates the selected game + lobby state, then redirects you back to the URL in the link.
+- Then the images get requested again when the page loads.
 
 </details>
 
