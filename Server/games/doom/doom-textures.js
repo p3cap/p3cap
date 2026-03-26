@@ -30,8 +30,10 @@ const UI_TEXTURES = {
   shoot: { directory: "ui", prefixes: ["btn-shoot", "btn_shoot"] },
   wait: { directory: "ui", prefixes: ["btn-wait", "btn_wait"] },
   muzzleFlash: { directory: "characters", prefixes: ["anim-muzzle-flash", "anim_muzzle_flash"] },
+  gunShot: { directory: "characters", prefixes: ["anim-gun-shot", "anim_gun_shot"] },
   enemyDeath: { directory: "characters", prefixes: ["anim-imp-death", "anim_imp_death"] },
   playerDeath: { directory: "ui", prefixes: ["anim-player-death", "anim_player_death"] },
+  damageFrame: { directory: "ui", prefixes: ["anim-damage-frame", "anim_damage_frame"] },
   deathScreen: { directory: "ui", prefixes: ["screen-death"] },
   floorClearPanel: { directory: "ui", prefixes: ["screen-floor-clear"] },
   screenFrame: { directory: "ui", prefixes: ["screen-frame"] }

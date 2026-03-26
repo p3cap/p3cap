@@ -29,6 +29,8 @@ const ENEMY_SPRITE_BY_DEPTH = {
 const VIEWPORT_BOX = { x: 10, y: 10, w: 700, h: 342 };
 const HUD_BOX = { x: 10, y: 360, w: 700, h: 40 };
 const RADAR_AREA = { w: 122, h: 88, inset: 10 };
+const GUN_SPRITE_BOX = { x: 334, y: 214, w: 152, h: 118 };
+const MUZZLE_FLASH_BOX = { x: 434, y: 226, w: 64, h: 42 };
 
 const slug = "doom";
 
@@ -138,22 +140,38 @@ function renderEnemySprite(state, enemy, depth) {
     return "";
   }
 
-  const textureUri = getSurfaceTextureUri(state, "enemy", `${enemy.id}:${enemy.x}:${enemy.y}`);
+  const textureUri = getSurfaceTextureUri(state, "enemy", enemy.id);
   if (!textureUri) {
     return "";
   }
-  const x = sprite.cx - Math.floor(sprite.w / 2);
-  const y = sprite.baseY - sprite.h;
+  const { x, y, w, h, cx, baseY } = getEnemySpriteBounds(depth);
 
   return `
   <g>
-    <ellipse cx="${sprite.cx}" cy="${sprite.baseY - 4}" rx="${Math.floor(sprite.w * 0.33)}" ry="${Math.max(4, Math.floor(sprite.h * 0.08))}" fill="#000000" opacity="0.35" />
-    <image href="${escapeXml(textureUri)}" x="${x}" y="${y}" width="${sprite.w}" height="${sprite.h}" preserveAspectRatio="xMidYMax meet" image-rendering="pixelated" />
+    <ellipse cx="${cx}" cy="${baseY - 4}" rx="${Math.floor(w * 0.33)}" ry="${Math.max(4, Math.floor(h * 0.08))}" fill="#000000" opacity="0.35" />
+    <image href="${escapeXml(textureUri)}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="xMidYMax meet" image-rendering="pixelated" />
   </g>`;
 }
 
+function getEnemySpriteBounds(depth) {
+  const sprite = ENEMY_SPRITE_BY_DEPTH[depth];
+  if (!sprite) {
+    return null;
+  }
+
+  return {
+    ...sprite,
+    x: sprite.cx - Math.floor(sprite.w / 2),
+    y: sprite.baseY - sprite.h
+  };
+}
+
 function renderGunSprite(state) {
-  const textureUri = getSurfaceTextureUri(state, "gun", `${state.floor}:${state.ammo}:${state.turn}`);
+  const isFiring = state.viewEvent && (state.viewEvent.type === "shoot" || state.viewEvent.type === "enemy-death");
+  const firingTextureUri = isFiring
+    ? getEffectTextureUri("gunShot", `${state.floor}:${state.turn}:${state.ammo}`)
+    : "";
+  const textureUri = firingTextureUri || getSurfaceTextureUri(state, "gun", `${state.floor}:${state.ammo}:${state.turn}`);
   if (!textureUri) {
     return "";
   }
@@ -161,7 +179,7 @@ function renderGunSprite(state) {
   return `
     <g>
       <ellipse cx="410" cy="332" rx="58" ry="11" fill="#000000" opacity="0.24" />
-      ${renderTexturedRect(334, 214, 152, 118, textureUri)}
+      ${renderTexturedRect(GUN_SPRITE_BOX.x, GUN_SPRITE_BOX.y, GUN_SPRITE_BOX.w, GUN_SPRITE_BOX.h, textureUri)}
     </g>`;
 }
 
@@ -243,20 +261,30 @@ function renderViewEvent(state) {
 
   let enemyDeathEffect = "";
   if (enemyDeathUri && state.viewEvent.type === "enemy-death") {
-    const sprite = ENEMY_SPRITE_BY_DEPTH[state.viewEvent.depth];
+    const sprite = getEnemySpriteBounds(state.viewEvent.depth);
     if (sprite) {
-      const x = sprite.cx - Math.floor(sprite.w / 2);
-      const y = sprite.baseY - sprite.h;
       enemyDeathEffect = `
-    <image href="${escapeXml(enemyDeathUri)}" x="${x - 18}" y="${y - 12}" width="${sprite.w + 36}" height="${sprite.h + 28}" preserveAspectRatio="xMidYMax meet" image-rendering="pixelated" />`;
+    <image href="${escapeXml(enemyDeathUri)}" x="${sprite.x - 14}" y="${sprite.y - 10}" width="${sprite.w + 28}" height="${sprite.h + 20}" preserveAspectRatio="xMidYMid meet" image-rendering="pixelated" />`;
     }
   }
 
   return `
     ${enemyDeathEffect}
     ${muzzleFlashUri
-      ? `<image href="${escapeXml(muzzleFlashUri)}" x="408" y="218" width="92" height="54" preserveAspectRatio="none" image-rendering="pixelated" />`
+      ? `<image href="${escapeXml(muzzleFlashUri)}" x="${MUZZLE_FLASH_BOX.x}" y="${MUZZLE_FLASH_BOX.y}" width="${MUZZLE_FLASH_BOX.w}" height="${MUZZLE_FLASH_BOX.h}" preserveAspectRatio="xMinYMid meet" image-rendering="pixelated" />`
       : ""}`;
+}
+
+function renderOverlayEvent(state) {
+  const damageFrameUri = state.overlayEvent && state.overlayEvent.type === "player-hurt"
+    ? getEffectTextureUri("damageFrame", `${state.turn}:${state.overlayEvent.damage}`)
+    : "";
+
+  if (!damageFrameUri) {
+    return "";
+  }
+
+  return `<image href="${escapeXml(damageFrameUri)}" x="0" y="0" width="720" height="420" preserveAspectRatio="none" image-rendering="pixelated" />`;
 }
 
 function renderViewSvg(rawState) {
@@ -358,6 +386,7 @@ function renderViewSvg(rawState) {
     ${enemyDepth ? renderEnemySprite(state, enemyInSight, enemyDepth) : ""}
     ${renderViewEvent(state)}
     ${renderGunSprite(state)}
+    ${renderOverlayEvent(state)}
     ${renderViewportFrame()}
     ${renderBottomStats(state, hpColor)}
     ${radarTiles}

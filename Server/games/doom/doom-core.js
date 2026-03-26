@@ -19,6 +19,7 @@ const ACTION_LOGS = {
 const DEFAULT_THEME_NAME = "rust";
 const THEME_NAMES = ["rust", "tech", "crypt"];
 const VIEW_EVENT_TYPES = new Set(["none", "shoot", "enemy-death", "player-death"]);
+const OVERLAY_EVENT_TYPES = new Set(["none", "player-hurt"]);
 
 function escapeXml(value) {
   return String(value)
@@ -104,6 +105,21 @@ function normalizeViewEvent(source) {
   return createViewEvent(source.type, source);
 }
 
+function createOverlayEvent(type = "none", values = {}) {
+  return {
+    type: OVERLAY_EVENT_TYPES.has(type) ? type : "none",
+    damage: clampNumber(values.damage, 0, 0, 999)
+  };
+}
+
+function normalizeOverlayEvent(source) {
+  if (!source || typeof source !== "object") {
+    return createOverlayEvent();
+  }
+
+  return createOverlayEvent(source.type, source);
+}
+
 function normalizePendingFloor(source, currentFloor, currentSeed) {
   if (!source || typeof source !== "object") {
     return null;
@@ -150,7 +166,9 @@ function buildLobbyPath(gameSlug, lobbySlug, suffix = "") {
 }
 
 function getFloorDimensions(floor) {
-  const growth = Math.min(6, Math.max(0, floor - 1));
+  const growth = floor <= 3
+    ? 0
+    : Math.min(5, Math.floor((floor - 4) / 4) + 1);
   return {
     width: 11 + (growth * 2),
     height: 9 + (growth * 2)
@@ -211,6 +229,68 @@ function addLoops(grid, rng, count) {
 
   for (const candidate of candidates.slice(0, count)) {
     grid[candidate.y][candidate.x] = ".";
+  }
+}
+
+function carveLine(grid, startX, startY, endX, endY) {
+  let x = startX;
+  let y = startY;
+
+  grid[y][x] = ".";
+
+  while (x !== endX || y !== endY) {
+    if (x < endX) {
+      x += 1;
+    } else if (x > endX) {
+      x -= 1;
+    } else if (y < endY) {
+      y += 1;
+    } else if (y > endY) {
+      y -= 1;
+    }
+
+    grid[y][x] = ".";
+  }
+}
+
+function addMainRoutes(grid, playerStart) {
+  const midX = Math.floor(grid[0].length / 2);
+  const midY = Math.floor(grid.length / 2);
+  const laneHalfWidth = Math.max(2, Math.floor(grid[0].length / 5));
+
+  carveLine(grid, playerStart.x, playerStart.y, midX, playerStart.y);
+  carveLine(grid, midX, playerStart.y, midX, midY);
+  carveLine(
+    grid,
+    Math.max(1, midX - laneHalfWidth),
+    midY,
+    Math.min(grid[0].length - 2, midX + laneHalfWidth),
+    midY
+  );
+}
+
+function addOpenPockets(grid, rng, roomCount) {
+  const openAnchors = [];
+
+  for (let y = 2; y < grid.length - 2; y += 1) {
+    for (let x = 2; x < grid[0].length - 2; x += 1) {
+      if (grid[y][x] === ".") {
+        openAnchors.push({ x, y });
+      }
+    }
+  }
+
+  shuffleInPlace(openAnchors, rng);
+
+  for (const anchor of openAnchors.slice(0, roomCount)) {
+    const radiusX = rng() < 0.18 ? 2 : 1;
+    const radiusY = rng() < 0.18 ? 2 : 1;
+
+    for (let y = Math.max(1, anchor.y - radiusY); y <= Math.min(grid.length - 2, anchor.y + radiusY); y += 1) {
+      for (let x = Math.max(1, anchor.x - radiusX); x <= Math.min(grid[0].length - 2, anchor.x + radiusX); x += 1) {
+        grid[y][x] = ".";
+      }
+    }
   }
 }
 
@@ -322,7 +402,9 @@ function generateFloorLayout(floor, mapSeed) {
   grid[playerStart.y][playerStart.x] = ".";
   grid[Math.max(1, playerStart.y - 1)][playerStart.x] = ".";
   grid[playerStart.y][Math.min(dimensions.width - 2, playerStart.x + 1)] = ".";
-  addLoops(grid, rng, Math.max(3, floor + 2));
+  addMainRoutes(grid, playerStart);
+  addOpenPockets(grid, rng, Math.min(4, 1 + Math.floor(floor / 3)));
+  addLoops(grid, rng, Math.max(6, 8 + floor));
 
   const mapRows = mapRowsFromGrid(grid);
 
@@ -426,6 +508,7 @@ function createDoomFloorState({
     enemies: layout.enemies,
     pendingFloor: null,
     viewEvent: createViewEvent(),
+    overlayEvent: createOverlayEvent(),
     lastLog: lastLog || `Entered floor ${floor}.`,
     updatedAt: new Date().toISOString()
   };
@@ -485,6 +568,7 @@ function normalizeDoomState(state) {
       ? normalizePendingFloor(source.pendingFloor, floor, fallbackSeed)
       : null,
     viewEvent: normalizeViewEvent(source.viewEvent),
+    overlayEvent: normalizeOverlayEvent(source.overlayEvent),
     lastLog: typeof source.lastLog === "string" && source.lastLog.trim()
       ? source.lastLog.trim()
       : "A silent hallway waits.",
@@ -654,6 +738,7 @@ function queueFloorClear(state) {
     mapSeed: nextSeed
   };
   state.viewEvent = createViewEvent();
+  state.overlayEvent = createOverlayEvent();
   state.lastLog = `Floor ${state.floor} cleared. Press any button to descend to floor ${nextFloor}.`;
   return state;
 }
@@ -673,6 +758,7 @@ function applyDoomAction(currentState, route) {
 
   state.pendingFloor = null;
   state.viewEvent = createViewEvent();
+  state.overlayEvent = createOverlayEvent();
 
   if (route === "doomTurnLeft") {
     state.player.facing = rotateFacing(state.player.facing, "left");
@@ -747,6 +833,9 @@ function applyDoomAction(currentState, route) {
   }
 
   if (enemyTurn.damage > 0) {
+    state.overlayEvent = createOverlayEvent("player-hurt", {
+      damage: enemyTurn.damage
+    });
     state.lastLog = `${state.lastLog} Imps hit for ${enemyTurn.damage}.`;
   } else if (enemyTurn.movers > 0) {
     state.lastLog = `${state.lastLog} Shapes rush through the maze.`;
