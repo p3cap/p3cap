@@ -1,4 +1,5 @@
 const { getGameDefinition } = require("./game-registry");
+const { normalizeTopCount, renderLeaderboardSvg } = require("./leaderboard");
 
 const DEFAULT_GAME_SLUG = "cookieclicker";
 const DEFAULT_LOBBY_SLUG = "global";
@@ -39,6 +40,38 @@ function normalizeLobbySlug(candidate) {
 
 function buildGamePath(gameSlug, suffix = "") {
   return `/${gameSlug}${suffix}`;
+}
+
+function resolveLeaderboardRoute(pathname) {
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.length !== 2 || segments[0] !== "leaderboard") {
+    return null;
+  }
+
+  const gameSlug = normalizeGameSlug(segments[1].replace(/\.svg$/i, ""));
+  if (!gameSlug || !getGameDefinition(gameSlug)) {
+    return null;
+  }
+
+  return {
+    gameSlug
+  };
+}
+
+function getLeaderboardScore(game, state) {
+  if (game && typeof game.getLeaderboardScore === "function") {
+    return Math.max(0, Math.floor(Number(game.getLeaderboardScore(state)) || 0));
+  }
+
+  if (Number.isFinite(Number(state && state.score))) {
+    return Math.max(0, Math.floor(Number(state.score)));
+  }
+
+  if (Number.isFinite(Number(state && state.clicks))) {
+    return Math.max(0, Math.floor(Number(state.clicks)));
+  }
+
+  return 0;
 }
 
 function sendSvg(response, svg) {
@@ -286,6 +319,7 @@ function sendImageResponse(response, asset) {
 function createRequestHandler({
   stateStore,
   getStateStore,
+  leaderboardStore,
   rateLimiter,
   defaultRedirectUrl = "",
   defaultGameSlug = DEFAULT_GAME_SLUG,
@@ -300,11 +334,28 @@ function createRequestHandler({
 
   return async function handleRequest(request, response) {
     const url = getRequestUrl(request);
+    const leaderboardRoute = resolveLeaderboardRoute(url.pathname);
     const resolvedRoute = resolveRoute(url.pathname, normalizedDefaultGameSlug, normalizedDefaultLobbySlug);
 
     if (request.method !== "GET") {
       response.writeHead(405, { "Content-Type": "text/plain; charset=utf-8" });
       response.end("Method Not Allowed");
+      return;
+    }
+
+    if (leaderboardRoute) {
+      const highlightLobby = normalizeLobbySlug(url.searchParams.get("lobby"));
+      const topCount = normalizeTopCount(url.searchParams.get("top"));
+      const entries = leaderboardStore && typeof leaderboardStore.getGameEntries === "function"
+        ? await leaderboardStore.getGameEntries(leaderboardRoute.gameSlug)
+        : [];
+
+      sendSvg(response, renderLeaderboardSvg({
+        gameSlug: leaderboardRoute.gameSlug,
+        entries,
+        topCount,
+        highlightLobby
+      }));
       return;
     }
 
@@ -405,6 +456,13 @@ function createRequestHandler({
       }
 
       await game.runAction(route, activeStateStore);
+      if (leaderboardStore && typeof leaderboardStore.recordScore === "function") {
+        const latestState = game.normalizeState(await activeStateStore.getState());
+        const score = getLeaderboardScore(game, latestState);
+        if (score > 0) {
+          await leaderboardStore.recordScore(gameSlug, lobbySlug, score);
+        }
+      }
       sendBackBounce(response, fallbackLocation);
       return;
     }

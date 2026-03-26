@@ -9,6 +9,7 @@ const {
   normalizeLobbySlug
 } = require("./app");
 const { getGameDefinition } = require("./game-registry");
+const { createFileLeaderboardStore } = require("./leaderboard-store");
 const { createMemoryRateLimiter, normalizeCooldownMs } = require("./rate-limiter");
 
 const PORT = Number(process.env.PORT || 3000);
@@ -17,6 +18,10 @@ const DEFAULT_GAME = normalizeGameSlug(process.env.DEFAULT_GAME_SLUG) || DEFAULT
 const DEFAULT_LOBBY = normalizeLobbySlug(process.env.DEFAULT_LOBBY_SLUG) || DEFAULT_LOBBY_SLUG;
 const ACTION_COOLDOWN_MS = normalizeCooldownMs(process.env.ACTION_COOLDOWN_MS || DEFAULT_ACTION_COOLDOWN_MS);
 const rateLimiter = createMemoryRateLimiter({ cooldownMs: ACTION_COOLDOWN_MS });
+const LEADERBOARD_FILE = process.env.LEADERBOARD_FILE || path.join(path.dirname(STATE_FILE), "leaderboard.json");
+const leaderboardStore = createFileLeaderboardStore({
+  filePath: LEADERBOARD_FILE
+});
 
 function resolveStateFilePath(gameSlug, lobbySlug) {
   const normalizedGameSlug = normalizeGameSlug(gameSlug) || DEFAULT_GAME;
@@ -57,6 +62,7 @@ function getStateStore(gameSlug, lobbySlug) {
 
 const handleRequest = createRequestHandler({
   getStateStore,
+  leaderboardStore,
   rateLimiter,
   defaultRedirectUrl: process.env.README_REDIRECT_URL || "",
   defaultGameSlug: DEFAULT_GAME,
@@ -66,6 +72,7 @@ const handleRequest = createRequestHandler({
 
 async function main() {
   await getStateStore(DEFAULT_GAME, DEFAULT_LOBBY).getState();
+  await leaderboardStore.getState();
 
   const server = http.createServer((request, response) => {
     handleRequest(request, response).catch((error) => {

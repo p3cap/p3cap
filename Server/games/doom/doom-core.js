@@ -256,21 +256,25 @@ function carveLine(grid, startX, startY, endX, endY) {
 function addMainRoutes(grid, playerStart) {
   const midX = Math.floor(grid[0].length / 2);
   const midY = Math.floor(grid.length / 2);
-  const laneHalfWidth = Math.max(2, Math.floor(grid[0].length / 5));
 
   carveLine(grid, playerStart.x, playerStart.y, midX, playerStart.y);
   carveLine(grid, midX, playerStart.y, midX, midY);
-  carveLine(
-    grid,
-    Math.max(1, midX - laneHalfWidth),
-    midY,
-    Math.min(grid[0].length - 2, midX + laneHalfWidth),
-    midY
-  );
+  if (midX > 1) {
+    grid[midY][midX - 1] = ".";
+  }
+  if (midX < grid[0].length - 2) {
+    grid[midY][midX + 1] = ".";
+  }
 }
 
 function addOpenPockets(grid, rng, roomCount) {
   const openAnchors = [];
+  const directions = [
+    { x: 1, y: 0 },
+    { x: -1, y: 0 },
+    { x: 0, y: 1 },
+    { x: 0, y: -1 }
+  ];
 
   for (let y = 2; y < grid.length - 2; y += 1) {
     for (let x = 2; x < grid[0].length - 2; x += 1) {
@@ -283,12 +287,25 @@ function addOpenPockets(grid, rng, roomCount) {
   shuffleInPlace(openAnchors, rng);
 
   for (const anchor of openAnchors.slice(0, roomCount)) {
-    const radiusX = rng() < 0.18 ? 2 : 1;
-    const radiusY = rng() < 0.18 ? 2 : 1;
+    const direction = directions[Math.floor(rng() * directions.length)];
+    const length = rng() < 0.2 ? 2 : 1;
 
-    for (let y = Math.max(1, anchor.y - radiusY); y <= Math.min(grid.length - 2, anchor.y + radiusY); y += 1) {
-      for (let x = Math.max(1, anchor.x - radiusX); x <= Math.min(grid[0].length - 2, anchor.x + radiusX); x += 1) {
-        grid[y][x] = ".";
+    for (let step = 1; step <= length; step += 1) {
+      const x = anchor.x + (direction.x * step);
+      const y = anchor.y + (direction.y * step);
+      if (x <= 0 || x >= grid[0].length - 1 || y <= 0 || y >= grid.length - 1) {
+        break;
+      }
+
+      grid[y][x] = ".";
+    }
+
+    if (rng() < 0.18) {
+      const sideDirection = directions[Math.floor(rng() * directions.length)];
+      const branchX = anchor.x + direction.x + sideDirection.x;
+      const branchY = anchor.y + direction.y + sideDirection.y;
+      if (branchX > 0 && branchX < grid[0].length - 1 && branchY > 0 && branchY < grid.length - 1) {
+        grid[branchY][branchX] = ".";
       }
     }
   }
@@ -353,21 +370,27 @@ function pickTextureTheme(mapSeed, floor) {
 function createEnemiesForFloor(mapRows, start, floor, mapSeed) {
   const rng = createSeededRng(mixSeed("enemies", mapSeed, floor));
   const distanceMap = createDistanceMap(mapRows, start);
-  const minimumDistance = Math.max(5, Math.floor((mapRows.length + mapRows[0].length) / 4));
-  const candidateCells = Array.from(distanceMap.entries())
+  const minimumDistance = Math.max(3, Math.floor((mapRows.length + mapRows[0].length) / 6));
+  const maximumDistance = minimumDistance + Math.max(5, Math.floor((floor + mapRows.length) / 3));
+  const allCandidateCells = Array.from(distanceMap.entries())
     .map(([key, distance]) => {
       const [x, y] = key.split(",").map(Number);
       return { x, y, distance };
-    })
-    .filter((cell) => cell.distance >= minimumDistance);
+    });
+  const candidateCells = allCandidateCells.filter(
+    (cell) => cell.distance >= minimumDistance && cell.distance <= maximumDistance
+  );
+  const fallbackCells = candidateCells.length > 0
+    ? candidateCells
+    : allCandidateCells.filter((cell) => cell.distance >= minimumDistance);
 
-  shuffleInPlace(candidateCells, rng);
+  shuffleInPlace(fallbackCells, rng);
 
   const enemies = [];
   const count = Math.min(10, 2 + floor);
   const hp = floor >= 6 ? 3 : floor >= 4 ? 2 : 1;
 
-  for (const cell of candidateCells) {
+  for (const cell of fallbackCells) {
     const tooClose = enemies.some((enemy) => Math.abs(enemy.x - cell.x) + Math.abs(enemy.y - cell.y) < 2);
     if (tooClose) {
       continue;
@@ -403,8 +426,8 @@ function generateFloorLayout(floor, mapSeed) {
   grid[Math.max(1, playerStart.y - 1)][playerStart.x] = ".";
   grid[playerStart.y][Math.min(dimensions.width - 2, playerStart.x + 1)] = ".";
   addMainRoutes(grid, playerStart);
-  addOpenPockets(grid, rng, Math.min(4, 1 + Math.floor(floor / 3)));
-  addLoops(grid, rng, Math.max(6, 8 + floor));
+  addOpenPockets(grid, rng, Math.min(3, 1 + Math.floor(floor / 6)));
+  addLoops(grid, rng, Math.min(6, 2 + Math.floor(floor / 3)));
 
   const mapRows = mapRowsFromGrid(grid);
 

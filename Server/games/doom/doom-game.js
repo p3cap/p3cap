@@ -30,7 +30,6 @@ const VIEWPORT_BOX = { x: 10, y: 10, w: 700, h: 342 };
 const HUD_BOX = { x: 10, y: 360, w: 700, h: 40 };
 const RADAR_AREA = { w: 122, h: 88, inset: 10 };
 const GUN_SPRITE_BOX = { x: 334, y: 214, w: 152, h: 118 };
-const MUZZLE_FLASH_BOX = { x: 434, y: 226, w: 64, h: 42 };
 
 const slug = "doom";
 
@@ -251,10 +250,6 @@ function renderFloorClearSvg(state) {
 }
 
 function renderViewEvent(state) {
-  const showGunFlash = state.viewEvent.type === "shoot" || state.viewEvent.type === "enemy-death";
-  const muzzleFlashUri = showGunFlash
-    ? getEffectTextureUri("muzzleFlash", `${state.turn}:${state.viewEvent.depth}`)
-    : "";
   const enemyDeathUri = state.viewEvent.type === "enemy-death"
     ? getEffectTextureUri("enemyDeath", `${state.turn}:${state.viewEvent.depth}`)
     : "";
@@ -269,10 +264,7 @@ function renderViewEvent(state) {
   }
 
   return `
-    ${enemyDeathEffect}
-    ${muzzleFlashUri
-      ? `<image href="${escapeXml(muzzleFlashUri)}" x="${MUZZLE_FLASH_BOX.x}" y="${MUZZLE_FLASH_BOX.y}" width="${MUZZLE_FLASH_BOX.w}" height="${MUZZLE_FLASH_BOX.h}" preserveAspectRatio="xMinYMid meet" image-rendering="pixelated" />`
-      : ""}`;
+    ${enemyDeathEffect}`;
 }
 
 function renderOverlayEvent(state) {

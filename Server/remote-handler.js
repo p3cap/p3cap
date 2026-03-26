@@ -8,6 +8,7 @@ const {
   normalizeLobbySlug
 } = require("./app");
 const { getGameDefinition } = require("./game-registry");
+const { createRedisLeaderboardStore } = require("./leaderboard-store");
 const { createRedisRateLimiter, normalizeCooldownMs } = require("./rate-limiter");
 
 let cachedHandler = null;
@@ -34,6 +35,10 @@ function getHandler() {
   const baseStateKey = process.env.STATE_KEY || "readmeCookie:state";
   const actionCooldownMs = normalizeCooldownMs(process.env.ACTION_COOLDOWN_MS || DEFAULT_ACTION_COOLDOWN_MS);
   const stateStoreCache = new Map();
+  const leaderboardStore = createRedisLeaderboardStore({
+    redis,
+    key: process.env.LEADERBOARD_KEY || `${baseStateKey}:leaderboard`
+  });
   const rateLimiter = createRedisRateLimiter({
     redis,
     keyPrefix: process.env.RATE_LIMIT_KEY_PREFIX || "readmeCookie:ratelimit",
@@ -67,6 +72,7 @@ function getHandler() {
 
   cachedHandler = createRequestHandler({
     getStateStore,
+    leaderboardStore,
     rateLimiter,
     defaultRedirectUrl: process.env.README_REDIRECT_URL || "",
     defaultGameSlug,
