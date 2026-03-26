@@ -1,45 +1,80 @@
 <div align="center">
 
-<img src="https://p3cap.vercel.app/flappy/global/images/view.svg" alt="README Flappy animated screen" width="620" />
+<table>
+  <tr>
+    <td align="center">
+      <img src="https://p3cap.vercel.app/doom/global/images/view.svg" alt="Retro Doom-like game screen" width="590" />
+      <br />
+      <sub><strong>STEP MODE</strong> | one click = one world update | enemies only move after your input</sub>
+      <br />
+      <br />
+      <a href="https://p3cap.vercel.app/doom/global/turn-left">
+        <img src="https://p3cap.vercel.app/doom/global/images/button-turn-left.svg" alt="Turn left" width="132" />
+      </a>
+      <a href="https://p3cap.vercel.app/doom/global/forward">
+        <img src="https://p3cap.vercel.app/doom/global/images/button-forward.svg" alt="Move forward" width="132" />
+      </a>
+      <a href="https://p3cap.vercel.app/doom/global/turn-right">
+        <img src="https://p3cap.vercel.app/doom/global/images/button-turn-right.svg" alt="Turn right" width="132" />
+      </a>
+      <a href="https://p3cap.vercel.app/doom/global/shoot">
+        <img src="https://p3cap.vercel.app/doom/global/images/button-shoot.svg" alt="Shoot" width="132" />
+      </a>
+      <br />
+      <a href="https://p3cap.vercel.app/doom/global/strafe-left">
+        <img src="https://p3cap.vercel.app/doom/global/images/button-strafe-left.svg" alt="Step left" width="132" />
+      </a>
+      <a href="https://p3cap.vercel.app/doom/global/backward">
+        <img src="https://p3cap.vercel.app/doom/global/images/button-backward.svg" alt="Move backward" width="132" />
+      </a>
+      <a href="https://p3cap.vercel.app/doom/global/strafe-right">
+        <img src="https://p3cap.vercel.app/doom/global/images/button-strafe-right.svg" alt="Step right" width="132" />
+      </a>
+      <a href="https://p3cap.vercel.app/doom/global/wait">
+        <img src="https://p3cap.vercel.app/doom/global/images/button-wait.svg" alt="Wait" width="132" />
+      </a>
+    </td>
+  </tr>
+</table>
 
-<br />
-
-<a href="https://p3cap.vercel.app/flappy/global/tap">
-  <img src="https://p3cap.vercel.app/flappy/global/images/button-flap.svg" alt="Flap" width="220" />
-</a>
-
-<br />
-
-<sub><strong>README-FLAPPY</strong> | animated SVG timing test | every tap has a little timing noise</sub>
+<h4>README-DOOM</h4>
+<p>Primitive README FPS with generated mazes, bigger floors as you descend, and deterministic turn-step input.</p>
+<sub>Change `/doom/global/` to `/doom/&lt;YOUR_LOBBY&gt;/` in the URLs if you want a private run.</sub>
 
 </div>
 
 <details>
-<summary>How this experiment works</summary>
+<summary>How this game works</summary>
 
-- The bird is always falling while pipes slide in, and the SVG predicts if/when you crash.
-- Only taps update the game state, so every click returns a fresh animation cycle.
-- The timing window is intentionally generous because the link has to load.
-- If the SVG predicts a crash, it plays the `You deid` overlay at impact time.
-- Successful taps advance to the next pipe and bump the score.
-- Pipe heights are randomized per cycle, and the same button starts a fresh game after a crash.
-
-</details>
-
-<details>
-<summary>Why this is SVG and not GIF</summary>
-
-- A true per-state animated GIF is much heavier to generate on this backend.
-- Animated SVG is easier to ship here, easier to style, and still works as an image-based README experiment.
-- If you really want a GIF version later, we'd probably want a dedicated GIF encoder or prebuilt frame pipeline.
+- The game is a tiny corridor crawler dressed like a 1990s DOS shooter.
+- Every click performs exactly one deterministic action: move, turn, strafe, shoot, or wait.
+- After your action resolves, the world advances one step and enemies take theirs.
+- Each new floor generates a fresh random maze, and later floors expand the map size.
+- The renderer swaps between retro texture variants for walls, floors, ceilings, enemies, and the gun.
+- The lobby lives in the URL, so `doom/global` and `doom/my-squad` are separate saves.
 
 </details>
 
 <details>
-<summary>Bird assets</summary>
+<summary>How to make your own lobby</summary>
 
-- You can drop `bird.png`, `bird.svg`, or another supported `bird.*` file into `Server/assets/flappy/`.
-- The bird now renders only from an asset in `Server/assets/flappy/`.
+1. Copy this `README.md` into your profile repo.
+2. Change every `/doom/global/` segment to something like `/doom/my-lobby/`.
+3. Push the README and open your GitHub profile.
 
 </details>
+
+<details>
+<summary>Manual textures</summary>
+
+- Drop your own texture files into `Server/assets/doom/`.
+- Supported prefixes are `wall-front`, `wall-side`, `ceiling`, `floor`, `enemy-imp`, and `gun`.
+- You can add multiple variants like `wall-front-a.png` and `wall-front-b.png`; the renderer will pick from them automatically.
+- If a texture prefix is missing, Doom falls back to built-in retro textures.
+
+</details>
+
+<p align="center">
+  <sub>Made by <a href="https://github.com/p3cap">P3cap</a> with <a href="https://github.com/codex">Codex</a></sub>
+</p>
 
