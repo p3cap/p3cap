@@ -14,10 +14,18 @@ const {
 } = require("./doom-core");
 const {
   getButtonTextureUri,
+  getEffectTextureUri,
   getSurfaceTextureUri,
   renderTexturedPolygon,
   renderTexturedRect
 } = require("./doom-textures");
+
+const ENEMY_SPRITE_BY_DEPTH = {
+  1: { x: 296, y: 144, w: 128, h: 168 },
+  2: { x: 322, y: 178, w: 76, h: 112 },
+  3: { x: 338, y: 200, w: 48, h: 74 },
+  4: { x: 346, y: 212, w: 30, h: 48 }
+};
 
 const slug = "doom";
 
@@ -122,13 +130,7 @@ function renderHome(rawState, { defaultRedirectUrl = "", gameSlug, lobbySlug, ac
 }
 
 function renderEnemySprite(state, enemy, depth) {
-  const spriteByDepth = {
-    1: { x: 296, y: 144, w: 128, h: 168 },
-    2: { x: 322, y: 178, w: 76, h: 112 },
-    3: { x: 338, y: 200, w: 48, h: 74 },
-    4: { x: 346, y: 212, w: 30, h: 48 }
-  };
-  const sprite = spriteByDepth[depth];
+  const sprite = ENEMY_SPRITE_BY_DEPTH[depth];
   if (!sprite || !enemy) {
     return "";
   }
@@ -153,22 +155,33 @@ function renderGunSprite(state) {
 
   return `
     <g>
-      <ellipse cx="360" cy="366" rx="88" ry="18" fill="#000000" opacity="0.3" />
-      ${renderTexturedRect(258, 206, 204, 176, textureUri, "")}
+      <ellipse cx="392" cy="364" rx="74" ry="14" fill="#000000" opacity="0.26" />
+      ${renderTexturedRect(288, 222, 178, 154, textureUri, "")}
     </g>`;
 }
 
-function renderViewSvg(rawState) {
-  const state = normalizeDoomState(rawState);
-  if (state.status === "dead" || state.health <= 0) {
-    return `<?xml version="1.0" encoding="UTF-8"?>
+function renderDeathViewSvg(state) {
+  const bloodUri = getEffectTextureUri("playerDeath", `${state.floor}:${state.turn}`);
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-label="Doom death screen">
   <rect width="720" height="420" fill="#000000" />
-  <rect x="10" y="10" width="700" height="400" fill="#050505" stroke="#1a1a1a" stroke-width="8" />
-  <rect x="24" y="24" width="672" height="312" fill="#000000" stroke="#111111" stroke-width="4" />
-  <text x="360" y="170" text-anchor="middle" fill="#f8fafc" font-size="40" font-family="'Courier New', monospace">You deid</text>
-  <text x="360" y="210" text-anchor="middle" fill="#9ca3af" font-size="17" font-family="'Courier New', monospace">press any button to start a new game</text>
-  <rect x="24" y="336" width="672" height="60" fill="#050505" stroke="#111111" stroke-width="4" />
+  <rect x="10" y="10" width="700" height="400" fill="#120202" stroke="#260707" stroke-width="8">
+    <animate attributeName="fill" values="#050505;#120202;#120202" dur="420ms" fill="freeze" />
+  </rect>
+  <rect x="24" y="24" width="672" height="312" fill="#000000" stroke="#2a0808" stroke-width="4" />
+  ${bloodUri
+    ? `<image href="${escapeXml(bloodUri)}" x="24" y="24" width="672" height="312" preserveAspectRatio="none" image-rendering="pixelated">
+    <animate attributeName="opacity" values="0;0.3;0.95" dur="460ms" fill="freeze" />
+  </image>`
+    : ""}
+  <text x="360" y="170" text-anchor="middle" fill="#ffe4e6" font-size="40" font-family="'Courier New', monospace" opacity="0">You deid
+    <animate attributeName="opacity" values="0;0;1" dur="520ms" fill="freeze" />
+  </text>
+  <text x="360" y="210" text-anchor="middle" fill="#fecdd3" font-size="17" font-family="'Courier New', monospace" opacity="0">press any button to start a new game
+    <animate attributeName="opacity" values="0;0;1" dur="620ms" fill="freeze" />
+  </text>
+  <rect x="24" y="336" width="672" height="60" fill="#120202" stroke="#2a0808" stroke-width="4" />
   <text x="44" y="360" fill="#fca5a5" font-size="18" font-family="'Courier New', monospace">README-DOOM</text>
   <text x="44" y="384" fill="#f8fafc" font-size="16" font-family="'Courier New', monospace">HP 0</text>
   <text x="154" y="384" fill="#f8fafc" font-size="16" font-family="'Courier New', monospace">AMMO 0</text>
@@ -176,6 +189,71 @@ function renderViewSvg(rawState) {
   <text x="416" y="384" fill="#f8fafc" font-size="16" font-family="'Courier New', monospace">SCORE ${escapeXml(String(state.score))}</text>
   <text x="44" y="404" fill="#9ca3af" font-size="13" font-family="'Courier New', monospace">${escapeXml(state.lastLog)}</text>
 </svg>`;
+}
+
+function renderFloorClearSvg(state) {
+  const panelUri = getEffectTextureUri("floorClearPanel");
+  const nextFloor = state.pendingFloor && state.pendingFloor.floor
+    ? state.pendingFloor.floor
+    : state.floor + 1;
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-label="Floor clear screen">
+  <rect width="720" height="420" fill="#080506" />
+  <rect x="10" y="10" width="700" height="400" fill="#140807" stroke="#4a2317" stroke-width="8" />
+  ${panelUri
+    ? `<image href="${escapeXml(panelUri)}" x="48" y="52" width="624" height="268" preserveAspectRatio="none" image-rendering="pixelated" />`
+    : `<rect x="48" y="52" width="624" height="268" fill="#1b0d09" stroke="#6b2f1b" stroke-width="4" />`}
+  <text x="360" y="138" text-anchor="middle" fill="#fca5a5" font-size="24" font-family="'Courier New', monospace">FLOOR CLEARED</text>
+  <text x="360" y="186" text-anchor="middle" fill="#f8fafc" font-size="30" font-family="'Courier New', monospace">Congrats, you&apos;ve beaten floor ${escapeXml(String(state.floor))}</text>
+  <text x="360" y="226" text-anchor="middle" fill="#fde68a" font-size="18" font-family="'Courier New', monospace">score +250   health +15   ammo +4</text>
+  <text x="360" y="268" text-anchor="middle" fill="#e5e7eb" font-size="17" font-family="'Courier New', monospace">Press any button to continue to floor ${escapeXml(String(nextFloor))}</text>
+  <text x="360" y="290" text-anchor="middle" fill="#9ca3af" font-size="14" font-family="'Courier New', monospace">One more descent into the maze.</text>
+  <rect x="24" y="336" width="672" height="60" fill="#120906" stroke="#472116" stroke-width="4" />
+  <text x="44" y="360" fill="#fca5a5" font-size="18" font-family="'Courier New', monospace">README-DOOM</text>
+  <text x="44" y="384" fill="#86efac" font-size="16" font-family="'Courier New', monospace">READY FOR FLOOR ${escapeXml(String(nextFloor))}</text>
+  <text x="44" y="404" fill="#f8e7ce" font-size="13" font-family="'Courier New', monospace">${escapeXml(state.lastLog)}</text>
+</svg>`;
+}
+
+function renderViewEvent(state) {
+  const showGunFlash = state.viewEvent.type === "shoot" || state.viewEvent.type === "enemy-death";
+  const muzzleFlashUri = showGunFlash
+    ? getEffectTextureUri("muzzleFlash", `${state.turn}:${state.viewEvent.depth}`)
+    : "";
+  const enemyDeathUri = state.viewEvent.type === "enemy-death"
+    ? getEffectTextureUri("enemyDeath", `${state.turn}:${state.viewEvent.depth}`)
+    : "";
+
+  let enemyDeathEffect = "";
+  if (enemyDeathUri && state.viewEvent.type === "enemy-death") {
+    const sprite = ENEMY_SPRITE_BY_DEPTH[state.viewEvent.depth];
+    if (sprite) {
+      enemyDeathEffect = `
+    <g opacity="0">
+      <animate attributeName="opacity" values="0;1;0.95;0" dur="480ms" fill="freeze" />
+      <image href="${escapeXml(enemyDeathUri)}" x="${sprite.x - 18}" y="${sprite.y - 12}" width="${sprite.w + 36}" height="${sprite.h + 28}" preserveAspectRatio="none" image-rendering="pixelated" />
+    </g>`;
+    }
+  }
+
+  return `
+    ${enemyDeathEffect}
+    ${muzzleFlashUri
+      ? `<g opacity="0">
+      <animate attributeName="opacity" values="0;1;0.28;0" dur="220ms" fill="freeze" />
+      <image href="${escapeXml(muzzleFlashUri)}" x="340" y="168" width="92" height="92" preserveAspectRatio="none" image-rendering="pixelated" />
+    </g>`
+      : ""}`;
+}
+
+function renderViewSvg(rawState) {
+  const state = normalizeDoomState(rawState);
+  if (state.status === "dead" || state.health <= 0) {
+    return renderDeathViewSvg(state);
+  }
+  if (state.status === "floor-clear") {
+    return renderFloorClearSvg(state);
   }
 
   const frames = [
@@ -268,6 +346,7 @@ function renderViewSvg(rawState) {
     ${corridorLayers.join("\n")}
     ${frontWall}
     ${enemyDepth ? renderEnemySprite(state, enemyInSight, enemyDepth) : ""}
+    ${renderViewEvent(state)}
     ${renderGunSprite(state)}
     <rect x="24" y="336" width="672" height="60" fill="#120906" stroke="#472116" stroke-width="4" />
     <text x="44" y="360" fill="#fca5a5" font-size="18" font-family="'Courier New', monospace">README-DOOM</text>

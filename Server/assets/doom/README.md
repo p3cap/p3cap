@@ -1,20 +1,28 @@
-Place optional manual Doom textures in this folder.
+Place manual Doom assets in this folder, grouped by purpose:
+
+- `map/` for walls, ceilings, and floors
+- `characters/` for enemies, guns, and combat effects
+- `ui/` for buttons, screens, and overlays
 
 Supported prefixes:
-- `wall-front.*` or multiple variants like `wall-front-a.*`, `wall-front-2.*`
-- `wall-side.*` or multiple variants like `wall-side-a.*`, `wall-side-2.*`
-- `ceiling.*` or multiple variants like `ceiling-a.*`, `ceiling-2.*`
-- `floor.*` or multiple variants like `floor-a.*`, `floor-2.*`
-- `enemy-imp.*` or multiple variants like `enemy-imp-a.*`, `enemy-imp-2.*`
-- `gun.*` or multiple variants like `gun-a.*`, `gun-2.*`
-- `btn-forward.*`
-- `btn-backward.*`
-- `btn-turn-l.*`
-- `btn-turn-r.*`
-- `btn-strafe-l.*`
-- `btn-strafe-r.*`
-- `btn-shoot.*`
-- `btn-wait.*`
+- `map/wall-front.*` or multiple variants like `map/wall-front-a.*`, `map/wall-front-2.*`
+- `map/wall-side.*` or multiple variants like `map/wall-side-a.*`, `map/wall-side-2.*`
+- `map/ceiling.*` or multiple variants like `map/ceiling-a.*`, `map/ceiling-2.*`
+- `map/floor.*` or multiple variants like `map/floor-a.*`, `map/floor-2.*`
+- `characters/enemy-imp.*` or multiple variants like `characters/enemy-imp-a.*`, `characters/enemy-imp-2.*`
+- `characters/gun.*` or multiple variants like `characters/gun-a.*`, `characters/gun-2.*`
+- `characters/anim-muzzle-flash.*`
+- `characters/anim-imp-death.*`
+- `ui/btn-forward.*`
+- `ui/btn-backward.*`
+- `ui/btn-turn-l.*`
+- `ui/btn-turn-r.*`
+- `ui/btn-strafe-l.*`
+- `ui/btn-strafe-r.*`
+- `ui/btn-shoot.*`
+- `ui/btn-wait.*`
+- `ui/anim-player-death.*`
+- `ui/screen-floor-clear.*`
 
 Supported file types:
 - `.png`
@@ -24,4 +32,4 @@ Supported file types:
 - `.gif`
 - `.svg`
 
-The renderer randomly picks from matching variants per surface/button. There are no built-in Doom textures anymore, so missing prefixes render as simple flat fills or empty button frames.
+The renderer randomly picks from matching variants per surface/button/effect. There are no built-in Doom textures anymore, so missing prefixes render as simple flat fills or empty frames.

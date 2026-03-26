@@ -3,28 +3,37 @@ const path = require("path");
 const { escapeXml, hashString } = require("./doom-core");
 
 const DOOM_TEXTURE_DIR = path.join(__dirname, "..", "..", "assets", "doom");
+const DOOM_ASSET_DIRECTORIES = {
+  map: path.join(DOOM_TEXTURE_DIR, "map"),
+  characters: path.join(DOOM_TEXTURE_DIR, "characters"),
+  ui: path.join(DOOM_TEXTURE_DIR, "ui")
+};
 const SUPPORTED_TEXTURE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"]);
 const MANUAL_TEXTURE_CACHE = new Map();
 const POINT_BOUNDS_CACHE = new Map();
 
-const SURFACE_PREFIXES = {
-  wallFront: ["wall-front"],
-  wallSide: ["wall-side"],
-  ceiling: ["ceiling"],
-  floor: ["floor"],
-  enemy: ["enemy-imp"],
-  gun: ["gun"]
+const SURFACE_TEXTURES = {
+  wallFront: { directory: "map", prefixes: ["wall-front"] },
+  wallSide: { directory: "map", prefixes: ["wall-side"] },
+  ceiling: { directory: "map", prefixes: ["ceiling"] },
+  floor: { directory: "map", prefixes: ["floor"] },
+  enemy: { directory: "characters", prefixes: ["enemy-imp"] },
+  gun: { directory: "characters", prefixes: ["gun"] }
 };
 
-const BUTTON_PREFIXES = {
-  forward: ["btn-forward", "btn_forward"],
-  backward: ["btn-backward", "btn_backward"],
-  turnLeft: ["btn-turn-l", "btn_turn_l"],
-  turnRight: ["btn-turn-r", "btn_turn_r"],
-  strafeLeft: ["btn-strafe-l", "btn_strafe_l"],
-  strafeRight: ["btn-strafe-r", "btn_strafe_r"],
-  shoot: ["btn-shoot", "btn_shoot"],
-  wait: ["btn-wait", "btn_wait"]
+const UI_TEXTURES = {
+  forward: { directory: "ui", prefixes: ["btn-forward", "btn_forward"] },
+  backward: { directory: "ui", prefixes: ["btn-backward", "btn_backward"] },
+  turnLeft: { directory: "ui", prefixes: ["btn-turn-l", "btn_turn_l"] },
+  turnRight: { directory: "ui", prefixes: ["btn-turn-r", "btn_turn_r"] },
+  strafeLeft: { directory: "ui", prefixes: ["btn-strafe-l", "btn_strafe_l"] },
+  strafeRight: { directory: "ui", prefixes: ["btn-strafe-r", "btn_strafe_r"] },
+  shoot: { directory: "ui", prefixes: ["btn-shoot", "btn_shoot"] },
+  wait: { directory: "ui", prefixes: ["btn-wait", "btn_wait"] },
+  muzzleFlash: { directory: "characters", prefixes: ["anim-muzzle-flash"] },
+  enemyDeath: { directory: "characters", prefixes: ["anim-imp-death"] },
+  playerDeath: { directory: "ui", prefixes: ["anim-player-death"] },
+  floorClearPanel: { directory: "ui", prefixes: ["screen-floor-clear"] }
 };
 
 function getMimeTypeForTexture(fileName) {
@@ -48,23 +57,24 @@ function getMimeTypeForTexture(fileName) {
   return "";
 }
 
-function getManualTextureCandidates(prefixes) {
+function getManualTextureCandidates(directoryKey, prefixes) {
   const prefixList = Array.isArray(prefixes) ? prefixes.filter(Boolean) : [prefixes].filter(Boolean);
-  const cacheKey = prefixList.join("|");
+  const cacheKey = `${directoryKey}:${prefixList.join("|")}`;
   if (MANUAL_TEXTURE_CACHE.has(cacheKey)) {
     return MANUAL_TEXTURE_CACHE.get(cacheKey);
   }
 
   let candidates = [];
+  const textureDirectory = DOOM_ASSET_DIRECTORIES[directoryKey] || DOOM_TEXTURE_DIR;
 
   try {
-    if (prefixList.length > 0 && fs.existsSync(DOOM_TEXTURE_DIR)) {
+    if (prefixList.length > 0 && fs.existsSync(textureDirectory)) {
       const escapedPrefixes = prefixList
         .map((prefix) => prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
         .join("|");
       const pattern = new RegExp(`^(?:${escapedPrefixes})(?:-[a-z0-9_-]+)?\\.(png|jpg|jpeg|webp|gif|svg)$`, "i");
 
-      candidates = fs.readdirSync(DOOM_TEXTURE_DIR)
+      candidates = fs.readdirSync(textureDirectory)
         .filter((fileName) => pattern.test(fileName) && SUPPORTED_TEXTURE_EXTENSIONS.has(path.extname(fileName).toLowerCase()))
         .sort()
         .map((fileName) => {
@@ -73,7 +83,7 @@ function getManualTextureCandidates(prefixes) {
             return "";
           }
 
-          const filePath = path.join(DOOM_TEXTURE_DIR, fileName);
+          const filePath = path.join(textureDirectory, fileName);
           return `data:${mimeType};base64,${fs.readFileSync(filePath).toString("base64")}`;
         })
         .filter(Boolean);
@@ -86,8 +96,8 @@ function getManualTextureCandidates(prefixes) {
   return candidates;
 }
 
-function getTextureUri(prefixes, variantKey) {
-  const candidates = getManualTextureCandidates(prefixes);
+function getTextureUri(directoryKey, prefixes, variantKey) {
+  const candidates = getManualTextureCandidates(directoryKey, prefixes);
   if (candidates.length === 0) {
     return "";
   }
@@ -96,14 +106,34 @@ function getTextureUri(prefixes, variantKey) {
 }
 
 function getSurfaceTextureUri(state, surfaceType, variantKey) {
+  const surface = SURFACE_TEXTURES[surfaceType];
+  if (!surface) {
+    return "";
+  }
+
   return getTextureUri(
-    SURFACE_PREFIXES[surfaceType] || [],
+    surface.directory,
+    surface.prefixes,
     `${state.mapSeed}:${surfaceType}:${variantKey}`
   );
 }
 
 function getButtonTextureUri(buttonType) {
-  return getTextureUri(BUTTON_PREFIXES[buttonType] || [], buttonType);
+  const asset = UI_TEXTURES[buttonType];
+  if (!asset) {
+    return "";
+  }
+
+  return getTextureUri(asset.directory, asset.prefixes, buttonType);
+}
+
+function getEffectTextureUri(effectType, variantKey = effectType) {
+  const asset = UI_TEXTURES[effectType];
+  if (!asset) {
+    return "";
+  }
+
+  return getTextureUri(asset.directory, asset.prefixes, variantKey);
 }
 
 function getPointBounds(points) {
@@ -158,6 +188,7 @@ function renderTexturedRect(x, y, width, height, textureUri, fallbackFill = "tra
 
 module.exports = {
   getButtonTextureUri,
+  getEffectTextureUri,
   getSurfaceTextureUri,
   renderTexturedPolygon,
   renderTexturedRect

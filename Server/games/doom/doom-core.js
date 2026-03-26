@@ -18,6 +18,7 @@ const ACTION_LOGS = {
 
 const DEFAULT_THEME_NAME = "rust";
 const THEME_NAMES = ["rust", "tech", "crypt"];
+const VIEW_EVENT_TYPES = new Set(["none", "shoot", "enemy-death", "player-death"]);
 
 function escapeXml(value) {
   return String(value)
@@ -83,6 +84,35 @@ function createRandomSeed() {
 
 function normalizeThemeName(candidate) {
   return THEME_NAMES.includes(candidate) ? candidate : DEFAULT_THEME_NAME;
+}
+
+function createViewEvent(type = "none", values = {}) {
+  return {
+    type: VIEW_EVENT_TYPES.has(type) ? type : "none",
+    depth: clampNumber(values.depth, 0, 0, 5),
+    x: clampNumber(values.x, -1, -1, 999),
+    y: clampNumber(values.y, -1, -1, 999),
+    damage: clampNumber(values.damage, 0, 0, 999)
+  };
+}
+
+function normalizeViewEvent(source) {
+  if (!source || typeof source !== "object") {
+    return createViewEvent();
+  }
+
+  return createViewEvent(source.type, source);
+}
+
+function normalizePendingFloor(source, currentFloor, currentSeed) {
+  if (!source || typeof source !== "object") {
+    return null;
+  }
+
+  return {
+    floor: clampNumber(source.floor, currentFloor + 1, currentFloor + 1, 100),
+    mapSeed: clampNumber(source.mapSeed, mixSeed("pending-floor", currentSeed, currentFloor), 1, 2147483646)
+  };
 }
 
 function isFacing(value) {
@@ -394,6 +424,8 @@ function createDoomFloorState({
       facing: layout.playerStart.facing
     },
     enemies: layout.enemies,
+    pendingFloor: null,
+    viewEvent: createViewEvent(),
     lastLog: lastLog || `Entered floor ${floor}.`,
     updatedAt: new Date().toISOString()
   };
@@ -426,6 +458,11 @@ function normalizeDoomState(state) {
   const enemies = parseEnemies(source.enemies, mapRows, floor, generated.enemies)
     .filter((enemy) => enemy.hp > 0)
     .filter((enemy) => enemy.x !== normalizedPlayerX || enemy.y !== normalizedPlayerY);
+  const status = source.status === "dead"
+    ? "dead"
+    : source.status === "floor-clear"
+      ? "floor-clear"
+      : "playing";
 
   return {
     floor,
@@ -434,7 +471,7 @@ function normalizeDoomState(state) {
     ammo: clampNumber(source.ammo, 6, 0, 99),
     keys: clampNumber(source.keys, 0, 0, 9),
     turn: clampNumber(source.turn, 0, 0, 999999),
-    status: source.status === "dead" ? "dead" : "playing",
+    status,
     mapSeed: fallbackSeed,
     textureTheme: normalizeThemeName(source.textureTheme || generated.textureTheme),
     mapRows,
@@ -444,6 +481,10 @@ function normalizeDoomState(state) {
       facing: isFacing(player.facing) ? player.facing : fallbackPlayer.facing
     },
     enemies,
+    pendingFloor: status === "floor-clear"
+      ? normalizePendingFloor(source.pendingFloor, floor, fallbackSeed)
+      : null,
+    viewEvent: normalizeViewEvent(source.viewEvent),
     lastLog: typeof source.lastLog === "string" && source.lastLog.trim()
       ? source.lastLog.trim()
       : "A silent hallway waits.",
@@ -483,15 +524,20 @@ function traceShot(state) {
   const delta = getForwardDelta(state.player.facing);
   let x = state.player.x + delta.x;
   let y = state.player.y + delta.y;
+  let depth = 1;
 
   while (!isWallAt(state.mapRows, x, y)) {
     const enemy = getEnemyAt(state, x, y);
     if (enemy) {
-      return enemy;
+      return {
+        enemy,
+        depth
+      };
     }
 
     x += delta.x;
     y += delta.y;
+    depth += 1;
   }
 
   return null;
@@ -578,8 +624,13 @@ function advanceEnemies(state) {
 }
 
 function advanceFloor(state) {
-  const nextFloor = state.floor + 1;
-  const nextSeed = mixSeed(state.mapSeed, nextFloor, state.turn, state.score, state.health, state.ammo);
+  const nextFloor = clampNumber(state.pendingFloor && state.pendingFloor.floor, state.floor + 1, state.floor + 1, 100);
+  const nextSeed = clampNumber(
+    state.pendingFloor && state.pendingFloor.mapSeed,
+    mixSeed(state.mapSeed, nextFloor, state.turn, state.score, state.health, state.ammo),
+    1,
+    2147483646
+  );
 
   return createDoomFloorState({
     floor: nextFloor,
@@ -593,14 +644,35 @@ function advanceFloor(state) {
   });
 }
 
+function queueFloorClear(state) {
+  const nextFloor = state.floor + 1;
+  const nextSeed = mixSeed(state.mapSeed, nextFloor, state.turn, state.score, state.health, state.ammo);
+
+  state.status = "floor-clear";
+  state.pendingFloor = {
+    floor: nextFloor,
+    mapSeed: nextSeed
+  };
+  state.viewEvent = createViewEvent();
+  state.lastLog = `Floor ${state.floor} cleared. Press any button to descend to floor ${nextFloor}.`;
+  return state;
+}
+
 function applyDoomAction(currentState, route) {
   const state = normalizeDoomState(cloneState(currentState));
+
+  if (state.status === "floor-clear" && state.pendingFloor) {
+    return advanceFloor(state);
+  }
 
   if (state.status === "dead" || state.health <= 0) {
     return createFreshDoomState({
       lastLog: "Marine redeployed."
     });
   }
+
+  state.pendingFloor = null;
+  state.viewEvent = createViewEvent();
 
   if (route === "doomTurnLeft") {
     state.player.facing = rotateFacing(state.player.facing, "left");
@@ -622,17 +694,28 @@ function applyDoomAction(currentState, route) {
       state.lastLog = "Click. Out of ammo.";
     } else {
       state.ammo -= 1;
-      const enemy = traceShot(state);
-      if (enemy) {
-        enemy.hp = Math.max(0, enemy.hp - 1);
-        if (enemy.hp <= 0) {
+      const shot = traceShot(state);
+      if (shot && shot.enemy) {
+        shot.enemy.hp = Math.max(0, shot.enemy.hp - 1);
+        if (shot.enemy.hp <= 0) {
           state.score += 100;
+          state.viewEvent = createViewEvent("enemy-death", {
+            depth: shot.depth,
+            x: shot.enemy.x,
+            y: shot.enemy.y
+          });
           state.lastLog = "You blast an imp.";
         } else {
           state.score += 35;
+          state.viewEvent = createViewEvent("shoot", {
+            depth: shot.depth,
+            x: shot.enemy.x,
+            y: shot.enemy.y
+          });
           state.lastLog = "The imp staggers.";
         }
       } else {
+        state.viewEvent = createViewEvent("shoot");
         state.lastLog = "Shot echoes into the dark.";
       }
     }
@@ -644,12 +727,15 @@ function applyDoomAction(currentState, route) {
   state.enemies = state.enemies.filter((enemy) => enemy.hp > 0);
 
   if (state.enemies.length === 0) {
-    return advanceFloor(state);
+    return queueFloorClear(state);
   }
 
   const enemyTurn = advanceEnemies(state);
   if (state.health <= 0) {
     state.status = "dead";
+    state.viewEvent = createViewEvent("player-death", {
+      damage: enemyTurn.damage
+    });
     state.lastLog = enemyTurn.damage > 0
       ? `Imps tear you apart for ${enemyTurn.damage}. Press any button to restart.`
       : "You collapse in the dark. Press any button to restart.";
@@ -657,7 +743,7 @@ function applyDoomAction(currentState, route) {
   }
 
   if (state.enemies.length === 0) {
-    return advanceFloor(state);
+    return queueFloorClear(state);
   }
 
   if (enemyTurn.damage > 0) {
