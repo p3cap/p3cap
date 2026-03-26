@@ -5,8 +5,7 @@ Place manual Doom assets in this folder, grouped by purpose:
 - `ui/` for buttons, screens, and overlays
 
 Supported prefixes:
-- `map/wall-front.*` or multiple variants like `map/wall-front-a.*`, `map/wall-front-2.*`
-- `map/wall-side.*` or multiple variants like `map/wall-side-a.*`, `map/wall-side-2.*`
+- `map/wall.*` or multiple variants like `map/wall-a.*`, `map/wall-2.*`
 - `map/ceiling.*` or multiple variants like `map/ceiling-a.*`, `map/ceiling-2.*`
 - `map/floor.*` or multiple variants like `map/floor-a.*`, `map/floor-2.*`
 - `characters/enemy-imp.*` or multiple variants like `characters/enemy-imp-a.*`, `characters/enemy-imp-2.*`
@@ -22,7 +21,9 @@ Supported prefixes:
 - `ui/btn-shoot.*`
 - `ui/btn-wait.*`
 - `ui/anim-player-death.*`
+- `ui/screen-death.*`
 - `ui/screen-floor-clear.*`
+- `ui/screen-frame.*`
 
 Supported file types:
 - `.png`
@@ -32,4 +33,4 @@ Supported file types:
 - `.gif`
 - `.svg`
 
-The renderer randomly picks from matching variants per surface/button/effect. There are no built-in Doom textures anymore, so missing prefixes render as simple flat fills or empty frames.
+The renderer randomly picks from matching variants per surface/button/effect. There are no built-in Doom textures anymore, and missing Doom texture assets now render as empty space instead of code-made stand-ins.

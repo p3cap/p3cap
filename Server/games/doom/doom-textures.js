@@ -13,8 +13,7 @@ const MANUAL_TEXTURE_CACHE = new Map();
 const POINT_BOUNDS_CACHE = new Map();
 
 const SURFACE_TEXTURES = {
-  wallFront: { directory: "map", prefixes: ["wall-front"] },
-  wallSide: { directory: "map", prefixes: ["wall-side"] },
+  wall: { directory: "map", prefixes: ["wall"] },
   ceiling: { directory: "map", prefixes: ["ceiling"] },
   floor: { directory: "map", prefixes: ["floor"] },
   enemy: { directory: "characters", prefixes: ["enemy-imp"] },
@@ -33,7 +32,9 @@ const UI_TEXTURES = {
   muzzleFlash: { directory: "characters", prefixes: ["anim-muzzle-flash"] },
   enemyDeath: { directory: "characters", prefixes: ["anim-imp-death"] },
   playerDeath: { directory: "ui", prefixes: ["anim-player-death"] },
-  floorClearPanel: { directory: "ui", prefixes: ["screen-floor-clear"] }
+  deathScreen: { directory: "ui", prefixes: ["screen-death"] },
+  floorClearPanel: { directory: "ui", prefixes: ["screen-floor-clear"] },
+  screenFrame: { directory: "ui", prefixes: ["screen-frame"] }
 };
 
 function getMimeTypeForTexture(fileName) {
@@ -160,9 +161,9 @@ function getPointBounds(points) {
   return bounds;
 }
 
-function renderTexturedPolygon(points, textureUri, fallbackFill = "transparent") {
+function renderTexturedPolygon(points, textureUri) {
   if (!textureUri) {
-    return fallbackFill ? `<polygon points="${points}" fill="${fallbackFill}" />` : "";
+    return "";
   }
 
   const bounds = getPointBounds(points);
@@ -178,9 +179,9 @@ function renderTexturedPolygon(points, textureUri, fallbackFill = "transparent")
   `;
 }
 
-function renderTexturedRect(x, y, width, height, textureUri, fallbackFill = "transparent") {
+function renderTexturedRect(x, y, width, height, textureUri) {
   if (!textureUri) {
-    return fallbackFill ? `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${fallbackFill}" />` : "";
+    return "";
   }
 
   return `<image href="${escapeXml(textureUri)}" x="${x}" y="${y}" width="${width}" height="${height}" preserveAspectRatio="none" image-rendering="pixelated" />`;
