@@ -1,6 +1,6 @@
-const cookieGame = require("./cookie-game");
-const doomGame = require("./doom-game");
-const flappyGame = require("./flappy-game");
+const cookieGame = require("./games/cookieclicker/cookie-game");
+const doomGame = require("./games/doom/doom-game");
+const flappyGame = require("./games/flappy/flappy-game");
 
 const GAME_DEFINITIONS = new Map([
   [cookieGame.slug, cookieGame],

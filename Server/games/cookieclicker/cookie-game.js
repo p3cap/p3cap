@@ -1,10 +1,10 @@
 const fs = require("fs");
 const path = require("path");
-const { createFileStateStore, createRedisStateStore } = require("./state-store");
+const { createFileStateStore, createRedisStateStore } = require("../../state-store");
 
 const slug = "cookieclicker";
 const formatter = new Intl.NumberFormat("en-US");
-const COOKIE_IMAGE_PATH = path.join(__dirname, "assets", "cookie.gif");
+const COOKIE_IMAGE_PATH = path.join(__dirname, "..", "..", "assets", "cookie.gif");
 
 const routeMap = new Map([
   ["api/state", "state"],

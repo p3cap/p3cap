@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { createFileJsonStateStore, createRedisJsonStateStore } = require("./json-state-store");
+const { createFileJsonStateStore, createRedisJsonStateStore } = require("../../json-state-store");
 
 const slug = "flappy";
 const CYCLE_MS = 2600;
@@ -20,7 +20,7 @@ const PIPE_HEAD_WIDTH = 90;
 const PIPE_START_X = 520;
 const PIPE_EXIT_X = -94;
 const PIPE_SPACING_X = 240;
-const BIRD_TEXTURE_DIR = path.join(__dirname, "assets", "flappy");
+const BIRD_TEXTURE_DIR = path.join(__dirname, "..", "..", "assets", "flappy");
 const birdTextureCache = new Map();
 
 const routeMap = new Map([

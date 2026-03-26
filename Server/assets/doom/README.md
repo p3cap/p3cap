@@ -7,6 +7,14 @@ Supported prefixes:
 - `floor.*` or multiple variants like `floor-a.*`, `floor-2.*`
 - `enemy-imp.*` or multiple variants like `enemy-imp-a.*`, `enemy-imp-2.*`
 - `gun.*` or multiple variants like `gun-a.*`, `gun-2.*`
+- `btn-forward.*`
+- `btn-backward.*`
+- `btn-turn-l.*`
+- `btn-turn-r.*`
+- `btn-strafe-l.*`
+- `btn-strafe-r.*`
+- `btn-shoot.*`
+- `btn-wait.*`
 
 Supported file types:
 - `.png`
@@ -16,4 +24,4 @@ Supported file types:
 - `.gif`
 - `.svg`
 
-The renderer randomly picks from matching variants per floor/tile and falls back to built-in retro textures when a prefix is missing.
+The renderer randomly picks from matching variants per surface/button. There are no built-in Doom textures anymore, so missing prefixes render as simple flat fills or empty button frames.

@@ -1,4 +1,4 @@
-const { createFileJsonStateStore, createRedisJsonStateStore } = require("./json-state-store");
+const { createFileJsonStateStore, createRedisJsonStateStore } = require("../../json-state-store");
 const {
   buildLobbyPath,
   createFreshDoomState,
@@ -13,6 +13,7 @@ const {
   applyDoomAction
 } = require("./doom-core");
 const {
+  getButtonTextureUri,
   getSurfaceTextureUri,
   renderTexturedPolygon,
   renderTexturedRect
@@ -132,22 +133,28 @@ function renderEnemySprite(state, enemy, depth) {
     return "";
   }
 
+  const textureUri = getSurfaceTextureUri(state, "enemy", `${enemy.id}:${enemy.x}:${enemy.y}`);
+  if (!textureUri) {
+    return "";
+  }
+
   return `
   <g>
     <ellipse cx="${sprite.x + Math.floor(sprite.w / 2)}" cy="${sprite.y + sprite.h - 4}" rx="${Math.floor(sprite.w * 0.33)}" ry="${Math.max(4, Math.floor(sprite.h * 0.08))}" fill="#000000" opacity="0.35" />
-    ${renderTexturedRect(sprite.x, sprite.y, sprite.w, sprite.h, getSurfaceTextureUri(state, "enemy", `${enemy.id}:${enemy.x}:${enemy.y}`), "#b91c1c")}
+    ${renderTexturedRect(sprite.x, sprite.y, sprite.w, sprite.h, textureUri, "")}
   </g>`;
 }
 
 function renderGunSprite(state) {
-  const fallback = state.ammo > 0 ? "#cbd5e1" : "#7f1d1d";
+  const textureUri = getSurfaceTextureUri(state, "gun", `${state.floor}:${state.ammo}:${state.turn}`);
+  if (!textureUri) {
+    return "";
+  }
 
   return `
     <g>
-      <polygon points="304,392 316,338 336,338 332,392" fill="#7b5a45" />
-      <polygon points="416,392 404,338 384,338 388,392" fill="#7b5a45" />
-      ${renderTexturedRect(322, 218, 76, 152, getSurfaceTextureUri(state, "gun", `${state.floor}:${state.ammo}:${state.turn}`), fallback)}
-      <rect x="320" y="356" width="80" height="16" fill="#121920" opacity="0.5" />
+      <ellipse cx="360" cy="366" rx="88" ry="18" fill="#000000" opacity="0.3" />
+      ${renderTexturedRect(258, 206, 204, 176, textureUri, "")}
     </g>`;
 }
 
@@ -196,9 +203,8 @@ function renderViewSvg(rawState) {
     const floorPoints = `${outer.x},${outer.y + outer.h} ${outer.x + outer.w},${outer.y + outer.h} ${inner.x + inner.w},${inner.y + inner.h} ${inner.x},${inner.y + inner.h}`;
 
     corridorLayers.push(renderTexturedPolygon(ceilingPoints, getSurfaceTextureUri(state, "ceiling", `${center.x}:${center.y}:ceiling:${depth}`), "#21100c"));
-    corridorLayers.push(`<polygon points="${ceilingPoints}" fill="none" stroke="#100908" stroke-width="2" />`);
+    corridorLayers.push(`<polygon points="${ceilingPoints}" fill="none" stroke="#100908" stroke-width="1" opacity="0.45" />`);
     corridorLayers.push(renderTexturedPolygon(floorPoints, getSurfaceTextureUri(state, "floor", `${center.x}:${center.y}:floor:${depth}`), "#17110d"));
-    corridorLayers.push(`<polygon points="${floorPoints}" fill="none" stroke="#0e0908" stroke-width="2" />`);
 
     if (left.wall) {
       corridorLayers.push(renderTexturedPolygon(leftPoints, getSurfaceTextureUri(state, "wallSide", `${left.x}:${left.y}:left`), "#6f371d"));
@@ -237,6 +243,15 @@ function renderViewSvg(rawState) {
   const radarPixelHeight = mapHeight * radarCell;
   const radarMapX = radarBox.x + Math.floor((radarBox.w - radarPixelWidth) / 2);
   const radarMapY = radarBox.y + 18 + Math.floor((radarBox.h - 30 - radarPixelHeight) / 2);
+  const radarCenterX = radarMapX + (state.player.x * radarCell) + Math.floor(radarCell / 2);
+  const radarCenterY = radarMapY + (state.player.y * radarCell) + Math.floor(radarCell / 2);
+  const radarForward = getForwardDelta(state.player.facing);
+  const radarLeft = getLeftDelta(state.player.facing);
+  const radarPlayerTriangle = [
+    `${radarCenterX + (radarForward.x * Math.max(3, Math.floor(radarCell * 0.38)))},${radarCenterY + (radarForward.y * Math.max(3, Math.floor(radarCell * 0.38)))}`,
+    `${radarCenterX + (radarLeft.x * Math.max(2, Math.floor(radarCell * 0.28)))},${radarCenterY + (radarLeft.y * Math.max(2, Math.floor(radarCell * 0.28)))}`,
+    `${radarCenterX - (radarLeft.x * Math.max(2, Math.floor(radarCell * 0.28)))},${radarCenterY - (radarLeft.y * Math.max(2, Math.floor(radarCell * 0.28)))}`
+  ].join(" ");
   const radarTiles = state.mapRows
     .map((row, y) => row.split("").map((tile, x) => `<rect x="${radarMapX + (x * radarCell)}" y="${radarMapY + (y * radarCell)}" width="${radarCell - 1}" height="${radarCell - 1}" fill="${tile === "#" ? "#4a1d10" : "#16100e"}" />`).join(""))
     .join("");
@@ -253,8 +268,6 @@ function renderViewSvg(rawState) {
     ${corridorLayers.join("\n")}
     ${frontWall}
     ${enemyDepth ? renderEnemySprite(state, enemyInSight, enemyDepth) : ""}
-    <rect x="357" y="180" width="6" height="42" fill="#f8fafc" opacity="0.92" />
-    <rect x="339" y="198" width="42" height="6" fill="#f8fafc" opacity="0.92" />
     ${renderGunSprite(state)}
     <rect x="24" y="336" width="672" height="60" fill="#120906" stroke="#472116" stroke-width="4" />
     <text x="44" y="360" fill="#fca5a5" font-size="18" font-family="'Courier New', monospace">README-DOOM</text>
@@ -268,7 +281,7 @@ function renderViewSvg(rawState) {
     <rect x="${radarMapX - 4}" y="${radarMapY - 4}" width="${radarPixelWidth + 8}" height="${radarPixelHeight + 8}" fill="#0b0908" />
     ${radarTiles}
     ${radarEnemies}
-    <rect x="${radarMapX + (state.player.x * radarCell) + 1}" y="${radarMapY + (state.player.y * radarCell) + 1}" width="${Math.max(3, radarCell - 2)}" height="${Math.max(3, radarCell - 2)}" fill="#fde68a" />
+    <polygon points="${radarPlayerTriangle}" fill="#fde68a" />
   </g>
 </svg>`;
 }
@@ -330,13 +343,15 @@ function renderMinimapSvg(rawState) {
 </svg>`;
 }
 
-function renderButtonSvg({ label, accent, sublabel = "" }) {
+function renderButtonSvg(buttonType, label) {
+  const textureUri = getButtonTextureUri(buttonType);
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="150" height="58" viewBox="0 0 150 58" role="img" aria-label="${escapeXml(label)} button">
-  <rect width="150" height="58" fill="#180b07" />
-  <rect x="4" y="4" width="142" height="50" fill="#2d160f" stroke="${accent}" stroke-width="4" />
-  <text x="75" y="28" text-anchor="middle" fill="#f8e7ce" font-size="16" font-family="'Courier New', monospace">${escapeXml(label)}</text>
-  <text x="75" y="45" text-anchor="middle" fill="${accent}" font-size="10" font-family="'Courier New', monospace">${escapeXml(sublabel)}</text>
+  <rect width="150" height="58" fill="#000000" />
+  ${textureUri
+    ? `<image href="${escapeXml(textureUri)}" x="0" y="0" width="150" height="58" preserveAspectRatio="none" image-rendering="pixelated" />`
+    : ""}
 </svg>`;
 }
 
@@ -352,19 +367,20 @@ function renderImage(route, state) {
   }
 
   const buttonMap = {
-    doomButtonForwardImage: { label: "FORWARD", accent: "#f59e0b", sublabel: "MOVE 1 TILE" },
-    doomButtonBackwardImage: { label: "BACK", accent: "#f59e0b", sublabel: "MOVE 1 TILE" },
-    doomButtonTurnLeftImage: { label: "TURN L", accent: "#38bdf8", sublabel: "FACE LEFT" },
-    doomButtonTurnRightImage: { label: "TURN R", accent: "#38bdf8", sublabel: "FACE RIGHT" },
-    doomButtonStrafeLeftImage: { label: "STEP L", accent: "#22c55e", sublabel: "SIDE MOVE" },
-    doomButtonStrafeRightImage: { label: "STEP R", accent: "#22c55e", sublabel: "SIDE MOVE" },
-    doomButtonShootImage: { label: "SHOOT", accent: "#ef4444", sublabel: "1 AMMO" },
-    doomButtonWaitImage: { label: "WAIT", accent: "#a78bfa", sublabel: "ADVANCE TURN" }
+    doomButtonForwardImage: { buttonType: "forward", label: "FORWARD" },
+    doomButtonBackwardImage: { buttonType: "backward", label: "BACK" },
+    doomButtonTurnLeftImage: { buttonType: "turnLeft", label: "TURN L" },
+    doomButtonTurnRightImage: { buttonType: "turnRight", label: "TURN R" },
+    doomButtonStrafeLeftImage: { buttonType: "strafeLeft", label: "STEP L" },
+    doomButtonStrafeRightImage: { buttonType: "strafeRight", label: "STEP R" },
+    doomButtonShootImage: { buttonType: "shoot", label: "SHOOT" },
+    doomButtonWaitImage: { buttonType: "wait", label: "WAIT" }
   };
+  const button = buttonMap[route] || { buttonType: "", label: "ACTION" };
 
   return {
     type: "svg",
-    body: renderButtonSvg(buttonMap[route] || { label: "ACTION", accent: "#f8e7ce" })
+    body: renderButtonSvg(button.buttonType, button.label)
   };
 }
 

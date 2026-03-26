@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="150" height="58" viewBox="0 0 150 58">
+  <rect width="150" height="58" fill="#160b09"/>
+  <rect x="4" y="4" width="142" height="50" fill="#211629" stroke="#a78bfa" stroke-width="4"/>
+  <circle cx="75" cy="28" r="12" fill="#ede9fe"/>
+  <rect x="73" y="18" width="4" height="11" fill="#7c3aed"/>
+  <rect x="75" y="26" width="8" height="4" transform="rotate(40 75 28)" fill="#7c3aed"/>
+  <text x="75" y="51" text-anchor="middle" fill="#ede9fe" font-size="10" font-family="'Courier New', monospace">WAIT</text>
+</svg>
