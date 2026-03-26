@@ -66,8 +66,8 @@ function renderHome(rawState, { defaultRedirectUrl = "", gameSlug, lobbySlug, ac
   const state = normalizeDoomState(rawState);
   const dimensions = `${state.mapRows[0].length}x${state.mapRows.length}`;
   const hint = defaultRedirectUrl
-    ? `Fallback return URL: <code>${escapeXml(defaultRedirectUrl)}</code>`
-    : "Set README_REDIRECT_URL to provide a fallback return URL if history.back() is unavailable.";
+    ? `Default redirect target: <code>${escapeXml(defaultRedirectUrl)}</code>`
+    : "Set README_REDIRECT_URL to send action links straight back to GitHub.";
 
   return `<!doctype html>
 <html lang="en">

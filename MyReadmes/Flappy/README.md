@@ -4,7 +4,7 @@
 
 <br />
 
-<a href="https://p3cap.vercel.app/flappy/global/tap">
+<a href="https://p3cap.vercel.app/flappy/global/tap?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
   <img src="https://p3cap.vercel.app/flappy/global/images/button-flap.svg" alt="Flap" width="220" />
 </a>
 

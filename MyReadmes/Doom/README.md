@@ -8,29 +8,29 @@
       <sub><strong>STEP MODE</strong> | one click = one world update | enemies only move after your input</sub>
       <br />
       <br />
-      <a href="https://p3cap.vercel.app/doom/global/turn-left">
+      <a href="https://p3cap.vercel.app/doom/global/turn-left?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
         <img src="https://p3cap.vercel.app/doom/global/images/button-turn-left.svg" alt="Turn left" width="132" />
       </a>
-      <a href="https://p3cap.vercel.app/doom/global/forward">
+      <a href="https://p3cap.vercel.app/doom/global/forward?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
         <img src="https://p3cap.vercel.app/doom/global/images/button-forward.svg" alt="Move forward" width="132" />
       </a>
-      <a href="https://p3cap.vercel.app/doom/global/turn-right">
+      <a href="https://p3cap.vercel.app/doom/global/turn-right?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
         <img src="https://p3cap.vercel.app/doom/global/images/button-turn-right.svg" alt="Turn right" width="132" />
       </a>
-      <a href="https://p3cap.vercel.app/doom/global/shoot">
+      <a href="https://p3cap.vercel.app/doom/global/shoot?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
         <img src="https://p3cap.vercel.app/doom/global/images/button-shoot.svg" alt="Shoot" width="132" />
       </a>
       <br />
-      <a href="https://p3cap.vercel.app/doom/global/strafe-left">
+      <a href="https://p3cap.vercel.app/doom/global/strafe-left?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
         <img src="https://p3cap.vercel.app/doom/global/images/button-strafe-left.svg" alt="Step left" width="132" />
       </a>
-      <a href="https://p3cap.vercel.app/doom/global/backward">
+      <a href="https://p3cap.vercel.app/doom/global/backward?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
         <img src="https://p3cap.vercel.app/doom/global/images/button-backward.svg" alt="Move backward" width="132" />
       </a>
-      <a href="https://p3cap.vercel.app/doom/global/strafe-right">
+      <a href="https://p3cap.vercel.app/doom/global/strafe-right?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
         <img src="https://p3cap.vercel.app/doom/global/images/button-strafe-right.svg" alt="Step right" width="132" />
       </a>
-      <a href="https://p3cap.vercel.app/doom/global/wait">
+      <a href="https://p3cap.vercel.app/doom/global/wait?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
         <img src="https://p3cap.vercel.app/doom/global/images/button-wait.svg" alt="Wait" width="132" />
       </a>
     </td>
@@ -59,8 +59,9 @@
 <summary>How to make your own lobby</summary>
 
 1. Copy this `README.md` into your profile repo.
-2. Change every `/doom/global/` segment to something like `/doom/my-lobby/`.
-3. Push the README and open your GitHub profile.
+2. Replace `https%3A%2F%2Fgithub.com%2Fp3cap` in the links with your exact GitHub profile URL (URL-encoded).
+3. Change every `/doom/global/` segment to something like `/doom/my-lobby/`.
+4. Push the README and open your GitHub profile.
 
 </details>
 

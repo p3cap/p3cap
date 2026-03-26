@@ -198,8 +198,8 @@ function renderHome(state, { defaultRedirectUrl = "", gameSlug, lobbySlug, actio
   const gameLabel = formatSlugLabel(gameSlug);
   const canonicalLobbyPath = buildLobbyPath(gameSlug, lobbySlug);
   const hint = defaultRedirectUrl
-    ? `Fallback return URL: <code>${escapeXml(defaultRedirectUrl)}</code>`
-    : "Set README_REDIRECT_URL to provide a fallback return URL if history.back() is unavailable.";
+    ? `Default redirect target: <code>${escapeXml(defaultRedirectUrl)}</code>`
+    : "Set README_REDIRECT_URL to send action routes straight back to GitHub.";
   const aliasHint = isLegacyAlias || isDefaultLobbyAlias
     ? `<p><strong>Canonical lobby path:</strong> <code>${escapeXml(canonicalLobbyPath)}</code></p>`
     : "";
@@ -247,7 +247,7 @@ function renderHome(state, { defaultRedirectUrl = "", gameSlug, lobbySlug, actio
   <body>
     <main>
       <h1>${escapeXml(gameLabel)} Lobby</h1>
-      <p>This server powers interactive GitHub README games by storing per-lobby state, serving dynamic SVGs, and sending you back via <code>history.back()</code> after every action.</p>
+      <p>This server powers interactive GitHub README games by storing per-lobby state, serving dynamic SVGs, and immediately redirecting back after every action.</p>
       <p><strong>Game slug:</strong> <code>${escapeXml(gameSlug)}</code></p>
       <p><strong>Lobby ID:</strong> <code>${escapeXml(lobbySlug)}</code></p>
       <p><strong>Clicks:</strong> ${escapeXml(formatExactNumber(state.clicks))} (${escapeXml(formatCompactNumber(state.clicks))})</p>
