@@ -14,10 +14,10 @@
 </p>
 
 <p align="center" valign="center">
-  <a href="https://p3cap.vercel.app/cookieclicker/click?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
+  <a href="https://p3cap.vercel.app/cookieclicker/click">
     <img src="https://p3cap.vercel.app/cookieclicker/images/cookie.gif" width="420" alt="Tap the cookie" />
   </a>
-  <a href="https://p3cap.vercel.app/cookieclicker/upgrade?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
+  <a href="https://p3cap.vercel.app/cookieclicker/upgrade">
     <img src="https://p3cap.vercel.app/cookieclicker/images/upgrade-button.svg" alt="Upgrade sidebar" width="280" height="420" />
   </a>
 </p>
@@ -27,11 +27,10 @@
 
 1. Create a public repository named exactly like your GitHub username so GitHub shows its `README.md` on your profile.
 2. Copy this `README.md` file into your repo.
-3. Replace `?redirect=https%3A%2F%2Fgithub.com%2Fp3cap` with the exact GitHub URL you want to return to after each click.
-4. Optional: create your own lobby by inserting a lobby ID after `cookieclicker/` in every backend URL, for example `https://p3cap.vercel.app/cookieclicker/my-friends/click`.
-5. Cutomize your `README.md` if you want to (just keep my name on it pls).
-6. Commit and push the repository to GitHub.
-7. Refresh your profile page and the game will appear there.
+3. Optional: create your own lobby by inserting a lobby ID after `cookieclicker/` in every backend URL, for example `https://p3cap.vercel.app/cookieclicker/my-friends/click`.
+4. Cutomize your `README.md` if you want to (just keep my name on it pls).
+5. Commit and push the repository to GitHub.
+6. Refresh your profile page and the game will appear there.
 <sub>Got stuck? Contact <a src="https://github.com/p3cap">me</a>.</sub>
 
 </details>
@@ -40,7 +39,7 @@
 <summary>How it works?</summary>
 
 - When you click the cookie or upgrade, you open the Vercel-hosted server.
-- The server updates the selected game + lobby state, then redirects you back to `https://github.com/p3cap`.
+- The server updates the selected game + lobby state, then sends you back via `history.back()`.
 - Then the images get requested again when the page loads.
 
 </details>
@@ -48,3 +47,4 @@
 <p align="center">
   <sub>Made by <a href="https://github.com/p3cap">P3cap</a> with <a href="https://github.com/codex">Codex</a></sub>
 </p>
+

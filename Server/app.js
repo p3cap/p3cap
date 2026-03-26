@@ -85,18 +85,84 @@ function sendHtml(response, html, statusCode = 200, extraHeaders = {}) {
   response.end(html);
 }
 
-function sendRedirect(response, location, statusCode = 303, extraHeaders = {}) {
-  response.writeHead(statusCode, {
-    Location: location,
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function sendBackPage(response, fallbackLocation, { statusCode = 200, retryAfterSeconds = null } = {}) {
+  const safeFallback = fallbackLocation || "/";
+  const retryMeta = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+    ? `<meta http-equiv="refresh" content="${Math.max(1, Math.ceil(retryAfterSeconds))}">`
+    : "";
+  const safeFallbackLink = escapeHtml(safeFallback);
+
+  const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Returning…</title>
+    ${retryMeta}
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(circle at top, #111827, #020617 70%);
+        color: #e2e8f0;
+        font: 16px/1.5 "Segoe UI", Arial, sans-serif;
+      }
+      main {
+        width: min(560px, calc(100vw - 32px));
+        background: rgba(15, 23, 42, 0.9);
+        border: 1px solid #334155;
+        border-radius: 24px;
+        padding: 24px;
+        text-align: center;
+      }
+      a { color: #fbbf24; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Taking you back</h1>
+      <p>If nothing happens, <a href="${safeFallbackLink}">click here</a>.</p>
+    </main>
+    <script>
+      (function () {
+        try {
+          if (window.history && window.history.length > 1) {
+            window.history.back();
+            return;
+          }
+        } catch (error) {}
+        window.location.href = ${JSON.stringify(safeFallback)};
+      })();
+    </script>
+  </body>
+</html>`;
+
+  const headers = {
     "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0",
     "CDN-Cache-Control": "no-store",
     "Vercel-CDN-Cache-Control": "no-store",
     "Surrogate-Control": "no-store",
     Pragma: "no-cache",
-    Expires: "0",
-    ...extraHeaders
-  });
-  response.end();
+    Expires: "0"
+  };
+
+  if (retryAfterSeconds) {
+    headers["Retry-After"] = String(Math.max(1, Math.ceil(retryAfterSeconds)));
+  }
+
+  sendHtml(response, html, statusCode, headers);
 }
 
 function getSafeAbsoluteUrl(candidate) {
@@ -159,13 +225,14 @@ function createFreshFallbackLocation(fallbackLocation) {
 }
 
 function sendBackBounce(response, fallbackLocation) {
-  sendRedirect(response, createFreshFallbackLocation(fallbackLocation));
+  sendBackPage(response, createFreshFallbackLocation(fallbackLocation));
 }
 
 function sendRateLimitedBounce(response, fallbackLocation, retryAfterMs) {
   const retrySeconds = Math.max(1, Math.ceil(retryAfterMs / 1000));
-  sendRedirect(response, createFreshFallbackLocation(fallbackLocation), 303, {
-    "Retry-After": String(retrySeconds)
+  sendBackPage(response, createFreshFallbackLocation(fallbackLocation), {
+    statusCode: 429,
+    retryAfterSeconds: retrySeconds
   });
 }
 

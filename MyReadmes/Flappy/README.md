@@ -4,7 +4,7 @@
 
 <br />
 
-<a href="https://p3cap.vercel.app/flappy/global/tap?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
+<a href="https://p3cap.vercel.app/flappy/global/tap">
   <img src="https://p3cap.vercel.app/flappy/global/images/button-flap.svg" alt="Flap" width="220" />
 </a>
 
@@ -17,12 +17,12 @@
 <details>
 <summary>How this experiment works</summary>
 
-- The pipe animation restarts after every redirect, so the timing window is roughly synced to what you see.
-- Your tap is judged against a narrow flap window with a small built-in error rate.
-- The current cycle now previews the outcome: if you do nothing and the bird would hit the pipe, the SVG ends on `You deid`.
-- Good timing carries the flap into the next generated cycle and advances the score.
+- The bird is always falling while pipes slide in, and the SVG predicts if/when you crash.
+- Only taps update the game state, so every click returns a fresh animation cycle.
+- The timing window is intentionally generous because the link has to load.
+- If the SVG predicts a crash, it plays the `You deid` overlay at impact time.
+- Successful taps advance to the next pipe and bump the score.
 - Pipe heights are randomized per cycle, and the same button starts a fresh game after a crash.
-- If the current no-click path survives, the next pipe is previewed too.
 
 </details>
 
@@ -42,3 +42,4 @@
 - The bird now renders only from an asset in `Server/assets/flappy/`.
 
 </details>
+
