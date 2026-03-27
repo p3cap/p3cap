@@ -127,18 +127,21 @@ function getEnemyTextureUri(state, enemy) {
 
   for (let tier = artTier; tier >= 1; tier -= 1) {
     const tierCandidates = getManualTextureCandidates("characters", [
+      `imp-${tier}`,
+      `imp_${tier}`,
       `enemy-${tier}`,
       `enemy_${tier}`,
       `enemy-imp-${tier}`,
       `enemy_imp_${tier}`,
-      tier === 1 ? "enemy" : ""
+      tier === 1 ? "enemy" : "",
+      tier === 1 ? "imp" : ""
     ]);
     if (tierCandidates.length > 0) {
       return tierCandidates[hashString(`${variantKey}:${tier}`) % tierCandidates.length];
     }
   }
 
-  return getTextureUri("characters", ["enemy"], variantKey);
+  return getTextureUri("characters", ["imp", "enemy"], variantKey);
 }
 
 function getButtonTextureUri(buttonType) {

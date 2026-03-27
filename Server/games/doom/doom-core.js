@@ -109,7 +109,7 @@ function getAvailableEnemyHpTiers() {
           continue;
         }
 
-        const match = /^enemy(?:-[a-z0-9_]+)?(?:-(\d+))?\.(png|jpg|jpeg|webp|gif|svg)$/i.exec(fileName);
+        const match = /^(?:enemy|imp)(?:-[a-z0-9_]+)?(?:-(\d+))?\.(png|jpg|jpeg|webp|gif|svg)$/i.exec(fileName);
         if (!match) {
           continue;
         }
@@ -131,7 +131,7 @@ function getAvailableEnemyHpTiers() {
 }
 
 function getMaxEnemyHpForFloor(floor) {
-  const difficultyCap = floor >= 7 ? 3 : floor >= 4 ? 2 : 1;
+  const difficultyCap = floor >= 10 ? 3 : floor >= 5 ? 2 : 1;
   const availableTiers = getAvailableEnemyHpTiers();
   const assetCap = availableTiers[availableTiers.length - 1] || 1;
   return Math.max(1, Math.min(difficultyCap, assetCap));
@@ -475,19 +475,23 @@ function chooseEnemyHpTier(floor, maxHp, rng, enemyIndex, enemyCount) {
   const higherTierSlots = [];
 
   if (maxHp >= 2) {
-    const toughRatio = Math.max(0, Math.min(0.58, 0.08 + Math.max(0, floor - 3) * 0.08));
+    const toughRatio = floor < 5
+      ? 0
+      : Math.max(0.14, Math.min(0.54, 0.16 + Math.max(0, floor - 5) * 0.05));
     const toughCount = Math.min(
       Math.max(0, enemyCount - 1),
-      Math.max(floor >= 4 ? 1 : 0, Math.round(enemyCount * toughRatio))
+      Math.max(floor >= 5 ? 1 : 0, Math.round(enemyCount * toughRatio))
     );
     higherTierSlots.push({ tier: 2, count: toughCount });
   }
 
   if (maxHp >= 3) {
-    const eliteRatio = Math.max(0, Math.min(0.28, Math.max(0, floor - 7) * 0.05));
+    const eliteRatio = floor < 10
+      ? 0
+      : Math.max(0.08, Math.min(0.24, 0.08 + Math.max(0, floor - 10) * 0.04));
     const eliteCount = Math.min(
       Math.max(0, enemyCount - 2),
-      Math.round(enemyCount * eliteRatio)
+      Math.max(1, Math.round(enemyCount * eliteRatio))
     );
     higherTierSlots.push({ tier: 3, count: eliteCount });
   }
