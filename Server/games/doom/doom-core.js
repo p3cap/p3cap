@@ -466,6 +466,42 @@ function pickTextureTheme(mapSeed, floor) {
   return THEME_NAMES[mixSeed("theme", mapSeed, floor) % THEME_NAMES.length] || DEFAULT_THEME_NAME;
 }
 
+function chooseEnemyHpTier(floor, maxHp, rng, enemyIndex, enemyCount) {
+  if (maxHp <= 1) {
+    return 1;
+  }
+
+  let hp = 1;
+  const higherTierSlots = [];
+
+  if (maxHp >= 2) {
+    const toughRatio = Math.max(0, Math.min(0.58, 0.08 + Math.max(0, floor - 3) * 0.08));
+    const toughCount = Math.min(
+      Math.max(0, enemyCount - 1),
+      Math.max(floor >= 4 ? 1 : 0, Math.round(enemyCount * toughRatio))
+    );
+    higherTierSlots.push({ tier: 2, count: toughCount });
+  }
+
+  if (maxHp >= 3) {
+    const eliteRatio = Math.max(0, Math.min(0.28, Math.max(0, floor - 7) * 0.05));
+    const eliteCount = Math.min(
+      Math.max(0, enemyCount - 2),
+      Math.round(enemyCount * eliteRatio)
+    );
+    higherTierSlots.push({ tier: 3, count: eliteCount });
+  }
+
+  for (const slot of higherTierSlots.reverse()) {
+    if (enemyIndex < slot.count) {
+      hp = Math.max(hp, slot.tier);
+      break;
+    }
+  }
+
+  return hp;
+}
+
 function createEnemiesForFloor(mapRows, start, floor, mapSeed) {
   const rng = createSeededRng(mixSeed("enemies", mapSeed, floor));
   const distanceMap = createDistanceMap(mapRows, start);
@@ -487,13 +523,15 @@ function createEnemiesForFloor(mapRows, start, floor, mapSeed) {
 
   const enemies = [];
   const count = Math.min(12, 2 + Math.floor(floor * 0.9));
-  const hp = getMaxEnemyHpForFloor(floor);
+  const maxHp = getMaxEnemyHpForFloor(floor);
 
   for (const cell of fallbackCells) {
     const tooClose = enemies.some((enemy) => Math.abs(enemy.x - cell.x) + Math.abs(enemy.y - cell.y) < 2);
     if (tooClose) {
       continue;
     }
+
+    const hp = chooseEnemyHpTier(floor, maxHp, rng, enemies.length, count);
 
     enemies.push(createEnemy({
       id: `enemy-${floor}-${enemies.length + 1}`,

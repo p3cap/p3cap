@@ -337,6 +337,25 @@ function getScreenBounds(projection) {
   };
 }
 
+function getBoundsUnion(...boundsList) {
+  const validBounds = boundsList.filter(Boolean);
+  if (validBounds.length === 0) {
+    return null;
+  }
+
+  const left = Math.min(...validBounds.map((bounds) => bounds.x));
+  const top = Math.min(...validBounds.map((bounds) => bounds.y));
+  const right = Math.max(...validBounds.map((bounds) => bounds.x + bounds.width));
+  const bottom = Math.max(...validBounds.map((bounds) => bounds.y + bounds.height));
+
+  return {
+    x: left,
+    y: top,
+    width: Math.max(1, right - left),
+    height: Math.max(1, bottom - top)
+  };
+}
+
 function collectVisibleStripeRanges(projection, zBuffer) {
   const ranges = [];
   let rangeStart = null;
@@ -405,25 +424,36 @@ function renderEnemies(state, frame, textureLookup) {
     const bobOffset = 2 + (((entry.enemy.id.charCodeAt(entry.enemy.id.length - 1) || 0) + state.turn) % 2);
     const clipId = `enemy-clip-${entry.enemy.id}-${state.turn}`;
     const light = getLightLevel(projection.distance, 0.05);
-    const clipMarkup = visibleRanges
-      .map((range) => `<rect x="${VIEWPORT_RENDER_BOX.x + (range.start * VIEWPORT_RENDER_BOX.pixelWidth)}" y="${currentBounds.y}" width="${(range.end - range.start + 1) * VIEWPORT_RENDER_BOX.pixelWidth}" height="${currentBounds.height}" />`)
-      .join("");
+    const visibleBounds = getBoundsUnion(...visibleRanges.map((range) => ({
+      x: VIEWPORT_RENDER_BOX.x + (range.start * VIEWPORT_RENDER_BOX.pixelWidth),
+      y: currentBounds.y,
+      width: (range.end - range.start + 1) * VIEWPORT_RENDER_BOX.pixelWidth,
+      height: currentBounds.height
+    })));
+    const clipBounds = getBoundsUnion(visibleBounds, hasMovementAnimation ? previousBounds : null) || currentBounds;
+    const movementBegin = state.viewEvent && state.viewEvent.type === "shoot" && state.viewEvent.enemyId === entry.enemy.id
+      ? "0.24s"
+      : "0s";
+    const movementDurationMs = 240;
     const movementMarkup = hasMovementAnimation
       ? `
-      <animate attributeName="x" begin="0.5s" dur="280ms" from="${previousBounds.x}" to="${currentBounds.x}" fill="freeze" />
-      <animate attributeName="y" begin="0.5s" dur="280ms" from="${previousBounds.y}" to="${currentBounds.y}" fill="freeze" />
-      <animate attributeName="width" begin="0.5s" dur="280ms" from="${previousBounds.width}" to="${currentBounds.width}" fill="freeze" />
-      <animate attributeName="height" begin="0.5s" dur="280ms" from="${previousBounds.height}" to="${currentBounds.height}" fill="freeze" />`
+      <animate attributeName="x" begin="${movementBegin}" dur="${movementDurationMs}ms" from="${previousBounds.x}" to="${currentBounds.x}" fill="freeze" />
+      <animate attributeName="y" begin="${movementBegin}" dur="${movementDurationMs}ms" from="${previousBounds.y}" to="${currentBounds.y}" fill="freeze" />
+      <animate attributeName="width" begin="${movementBegin}" dur="${movementDurationMs}ms" from="${previousBounds.width}" to="${currentBounds.width}" fill="freeze" />
+      <animate attributeName="height" begin="${movementBegin}" dur="${movementDurationMs}ms" from="${previousBounds.height}" to="${currentBounds.height}" fill="freeze" />`
       : "";
+    const bobBegin = hasMovementAnimation
+      ? `${Number.parseFloat(movementBegin) + (movementDurationMs / 1000)}s`
+      : "0s";
 
     pieces.push(`
     <defs>
       <clipPath id="${clipId}">
-        ${clipMarkup}
+        <rect x="${clipBounds.x}" y="${clipBounds.y}" width="${clipBounds.width}" height="${clipBounds.height}" />
       </clipPath>
     </defs>
     <g opacity="${light.toFixed(3)}">
-      <animateTransform attributeName="transform" type="translate" begin="${hasMovementAnimation ? "0.84s" : "0.5s"}" dur="1700ms" values="0 0;0 -${bobOffset};0 0" keyTimes="0;0.5;1" repeatCount="indefinite" />
+      <animateTransform attributeName="transform" type="translate" begin="${bobBegin}" dur="1700ms" values="0 0;0 -${bobOffset};0 0" keyTimes="0;0.5;1" repeatCount="indefinite" />
       <image href="${escapeXml(textureUri)}" x="${currentBounds.x}" y="${currentBounds.y}" width="${currentBounds.width}" height="${currentBounds.height}" preserveAspectRatio="xMidYMax meet" clip-path="url(#${clipId})" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;">
         ${movementMarkup}
       </image>
@@ -449,12 +479,16 @@ function createRaycastFrame(state) {
     camera,
     zBuffer
   };
+  const sceneMarkup = `${renderFloorAndCeiling(state, camera, textureLookup)}
+${renderWalls(rays, textureLookup)}`;
+  const enemyMarkup = renderEnemies(state, frame, textureLookup);
 
   return {
     ...frame,
-    markup: `${renderFloorAndCeiling(state, camera, textureLookup)}
-${renderWalls(rays, textureLookup)}
-${renderEnemies(state, frame, textureLookup)}`
+    sceneMarkup,
+    enemyMarkup,
+    markup: `${sceneMarkup}
+${enemyMarkup}`
   };
 }
 

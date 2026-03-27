@@ -281,7 +281,7 @@ function renderViewEvent(state, frame) {
         </filter>
       </defs>
       <image href="${escapeXml(hurtTextureUri)}" x="${hurtBounds.x}" y="${hurtBounds.y}" width="${hurtBounds.width}" height="${hurtBounds.height}" preserveAspectRatio="xMidYMid meet" filter="url(#${hurtFilterId})" opacity="0">
-        <animate attributeName="opacity" begin="0.5s" values="0;0.58;0" dur="280ms" fill="freeze" />
+        <animate attributeName="opacity" begin="0s" values="0;0.58;0" dur="220ms" fill="freeze" />
       </image>`;
   }
 
@@ -458,7 +458,7 @@ function renderViewSvg(rawState) {
   }
 
   const shouldAnimate = Boolean(state.lastAction);
-  const animationBegin = "0.5s";
+  const animationBegin = "0s";
   const animationMs = 260;
   const previousState = shouldAnimate ? withSceneState(state, {
     playerOverride: state.lastPlayer,
@@ -499,15 +499,16 @@ function renderViewSvg(rawState) {
       ${shouldAnimate && previousFrame ? `
       <g opacity="1">
         <animate attributeName="opacity" begin="${animationBegin}" from="1" to="0" dur="${animationMs}ms" fill="freeze" />
-        ${previousFrame.markup}
+        ${previousFrame.sceneMarkup}
       </g>
       ` : ""}
       <g opacity="${shouldAnimate ? "0" : "1"}">
         ${shouldAnimate
           ? `<animate attributeName="opacity" begin="${animationBegin}" from="0" to="1" dur="${animationMs}ms" fill="freeze" />`
           : ""}
-        ${currentFrame.markup}
+        ${currentFrame.sceneMarkup}
       </g>
+      ${currentFrame.enemyMarkup}
       ${renderViewEvent(state, currentFrame)}
       ${renderGunSprite(state)}
       ${renderOverlayEvent(state)}
