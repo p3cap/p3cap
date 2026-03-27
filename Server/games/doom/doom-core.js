@@ -583,6 +583,7 @@ function createDoomFloorState({
       facing: layout.playerStart.facing
     },
     lastPlayer: null,
+    lastEnemies: null,
     lastAction: null,
     enemies: layout.enemies,
     pendingFloor: null,
@@ -625,6 +626,9 @@ function normalizeDoomState(state) {
     : source.status === "floor-clear"
       ? "floor-clear"
       : "playing";
+  const lastEnemies = Array.isArray(source.lastEnemies)
+    ? parseEnemies(source.lastEnemies, mapRows, floor, [])
+    : null;
 
   return {
     floor,
@@ -649,6 +653,7 @@ function normalizeDoomState(state) {
         facing: isFacing(source.lastPlayer.facing) ? source.lastPlayer.facing : (isFacing(player.facing) ? player.facing : fallbackPlayer.facing)
       }
       : null,
+    lastEnemies: lastEnemies && lastEnemies.length > 0 ? lastEnemies : null,
     lastAction: typeof source.lastAction === "string" ? source.lastAction : null,
     enemies,
     pendingFloor: status === "floor-clear"
@@ -914,16 +919,9 @@ function applyDoomAction(currentState, route) {
   state.pendingFloor = null;
   state.viewEvent = createViewEvent();
   state.overlayEvent = createOverlayEvent();
-  const isMoveAction = [
-    "doomTurnLeft",
-    "doomTurnRight",
-    "doomForward",
-    "doomBackward",
-    "doomStrafeLeft",
-    "doomStrafeRight"
-  ].includes(route);
-  state.lastPlayer = isMoveAction ? { ...state.player } : null;
-  state.lastAction = isMoveAction ? route : null;
+  state.lastPlayer = { ...state.player };
+  state.lastEnemies = state.enemies.map((enemy) => ({ ...enemy }));
+  state.lastAction = typeof route === "string" ? route : null;
 
   if (route === "doomTurnLeft") {
     state.player.facing = rotateFacing(state.player.facing, "left");

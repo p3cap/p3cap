@@ -1,4 +1,4 @@
-const { getForwardDelta } = require("./doom-core");
+const { escapeXml, getForwardDelta } = require("./doom-core");
 const {
   getEnemyTextureUri,
   getSurfaceTextureUri,
@@ -320,8 +320,53 @@ function renderWalls(rays, textureLookup) {
   return pieces.join("\n");
 }
 
+function getScreenBounds(projection) {
+  return {
+    x: VIEWPORT_RENDER_BOX.x + (projection.startX * VIEWPORT_RENDER_BOX.pixelWidth),
+    y: VIEWPORT_RENDER_BOX.y + (projection.startY * VIEWPORT_RENDER_BOX.pixelHeight),
+    width: Math.max(
+      VIEWPORT_RENDER_BOX.pixelWidth,
+      (projection.endX - projection.startX + 1) * VIEWPORT_RENDER_BOX.pixelWidth
+    ),
+    height: Math.max(
+      VIEWPORT_RENDER_BOX.pixelHeight,
+      (projection.endY - projection.startY + 1) * VIEWPORT_RENDER_BOX.pixelHeight
+    )
+  };
+}
+
+function collectVisibleStripeRanges(projection, zBuffer) {
+  const ranges = [];
+  let rangeStart = null;
+
+  for (let stripe = projection.startX; stripe <= projection.endX; stripe += 1) {
+    const visible = projection.distance <= (zBuffer[stripe] || MAX_RENDER_DISTANCE + 1);
+
+    if (visible && rangeStart === null) {
+      rangeStart = stripe;
+      continue;
+    }
+
+    if (!visible && rangeStart !== null) {
+      ranges.push({ start: rangeStart, end: stripe - 1 });
+      rangeStart = null;
+    }
+  }
+
+  if (rangeStart !== null) {
+    ranges.push({ start: rangeStart, end: projection.endX });
+  }
+
+  return ranges;
+}
+
 function renderEnemies(state, frame, textureLookup) {
   const pieces = [];
+  const previousEnemies = new Map(
+    Array.isArray(state.lastEnemies)
+      ? state.lastEnemies.map((enemy) => [enemy.id, enemy])
+      : []
+  );
   const enemies = state.enemies
     .map((enemy) => ({
       enemy,
@@ -336,35 +381,51 @@ function renderEnemies(state, frame, textureLookup) {
       continue;
     }
 
-    const light = getLightLevel(projection.distance, 0.05);
-
-    for (let stripe = projection.startX; stripe <= projection.endX; stripe += 1) {
-      if (projection.distance > (frame.zBuffer[stripe] || MAX_RENDER_DISTANCE + 1)) {
-        continue;
-      }
-
-      const textureX = clamp(
-        Math.floor(((stripe - projection.leftEdge) * TEXTURE_VIRTUAL_SIZE) / Math.max(1, projection.width)),
-        0,
-        TEXTURE_VIRTUAL_SIZE - 1
-      );
-
-      pieces.push(renderCroppedTextureRect(
-        VIEWPORT_RENDER_BOX.x + (stripe * VIEWPORT_RENDER_BOX.pixelWidth),
-        VIEWPORT_RENDER_BOX.y + (projection.startY * VIEWPORT_RENDER_BOX.pixelHeight),
-        VIEWPORT_RENDER_BOX.pixelWidth,
-        Math.max(
-          VIEWPORT_RENDER_BOX.pixelHeight,
-          (projection.endY - projection.startY + 1) * VIEWPORT_RENDER_BOX.pixelHeight
-        ),
-        textureUri,
-        textureX,
-        0,
-        1,
-        TEXTURE_VIRTUAL_SIZE,
-        light
-      ));
+    const visibleRanges = collectVisibleStripeRanges(projection, frame.zBuffer);
+    if (visibleRanges.length === 0) {
+      continue;
     }
+
+    const currentBounds = getScreenBounds(projection);
+    const previousEnemy = previousEnemies.get(entry.enemy.id);
+    const previousProjection = previousEnemy
+      ? projectBillboard(frame, previousEnemy.x + 0.5, previousEnemy.y + 0.5)
+      : null;
+    const previousBounds = previousProjection ? getScreenBounds(previousProjection) : null;
+    const hasMovementAnimation = Boolean(
+      previousBounds && (
+        previousBounds.x !== currentBounds.x ||
+        previousBounds.y !== currentBounds.y ||
+        previousBounds.width !== currentBounds.width ||
+        previousBounds.height !== currentBounds.height
+      )
+    );
+    const bobOffset = 2 + (((entry.enemy.id.charCodeAt(entry.enemy.id.length - 1) || 0) + state.turn) % 2);
+    const clipId = `enemy-clip-${entry.enemy.id}-${state.turn}`;
+    const light = getLightLevel(projection.distance, 0.05);
+    const clipMarkup = visibleRanges
+      .map((range) => `<rect x="${VIEWPORT_RENDER_BOX.x + (range.start * VIEWPORT_RENDER_BOX.pixelWidth)}" y="${currentBounds.y}" width="${(range.end - range.start + 1) * VIEWPORT_RENDER_BOX.pixelWidth}" height="${currentBounds.height}" />`)
+      .join("");
+    const movementMarkup = hasMovementAnimation
+      ? `
+      <animate attributeName="x" begin="0.5s" dur="280ms" from="${previousBounds.x}" to="${currentBounds.x}" fill="freeze" />
+      <animate attributeName="y" begin="0.5s" dur="280ms" from="${previousBounds.y}" to="${currentBounds.y}" fill="freeze" />
+      <animate attributeName="width" begin="0.5s" dur="280ms" from="${previousBounds.width}" to="${currentBounds.width}" fill="freeze" />
+      <animate attributeName="height" begin="0.5s" dur="280ms" from="${previousBounds.height}" to="${currentBounds.height}" fill="freeze" />`
+      : "";
+
+    pieces.push(`
+    <defs>
+      <clipPath id="${clipId}">
+        ${clipMarkup}
+      </clipPath>
+    </defs>
+    <g opacity="${light.toFixed(3)}">
+      <animateTransform attributeName="transform" type="translate" begin="${hasMovementAnimation ? "0.84s" : "0.5s"}" dur="1700ms" values="0 0;0 -${bobOffset};0 0" keyTimes="0;0.5;1" repeatCount="indefinite" />
+      <image href="${escapeXml(textureUri)}" x="${currentBounds.x}" y="${currentBounds.y}" width="${currentBounds.width}" height="${currentBounds.height}" preserveAspectRatio="xMidYMax meet" clip-path="url(#${clipId})">
+        ${movementMarkup}
+      </image>
+    </g>`);
   }
 
   return pieces.join("\n");
