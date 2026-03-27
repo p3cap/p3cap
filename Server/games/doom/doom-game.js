@@ -256,11 +256,22 @@ function renderViewEvent(state) {
     : "";
 
   let enemyDeathEffect = "";
-  if (enemyDeathUri && state.viewEvent.type === "enemy-death") {
+  if (state.viewEvent.type === "enemy-death") {
     const sprite = getEnemySpriteBounds(state.viewEvent.depth);
     if (sprite) {
-      enemyDeathEffect = `
+      if (enemyDeathUri) {
+        enemyDeathEffect = `
     <image href="${escapeXml(enemyDeathUri)}" x="${sprite.x - 14}" y="${sprite.y - 10}" width="${sprite.w + 28}" height="${sprite.h + 20}" preserveAspectRatio="xMidYMid meet" image-rendering="pixelated" />`;
+      } else {
+        const cx = sprite.x + Math.floor(sprite.w / 2);
+        const cy = sprite.y + Math.floor(sprite.h / 2);
+        const burst = `${cx - 12},${cy - 2} ${cx - 2},${cy - 2} ${cx - 2},${cy - 12} ${cx + 2},${cy - 12} ${cx + 2},${cy - 2} ${cx + 12},${cy - 2} ${cx + 12},${cy + 2} ${cx + 2},${cy + 2} ${cx + 2},${cy + 12} ${cx - 2},${cy + 12} ${cx - 2},${cy + 2} ${cx - 12},${cy + 2}`;
+        enemyDeathEffect = `
+    <g>
+      <polygon points="${burst}" fill="#f87171" opacity="0.9" />
+      <text x="${cx}" y="${cy - 14}" text-anchor="middle" fill="#fde68a" font-size="10" font-family="'Courier New', monospace">ENEMY DOWN</text>
+    </g>`;
+      }
     }
   }
 
