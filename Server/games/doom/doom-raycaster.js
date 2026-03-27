@@ -18,7 +18,8 @@ const VIEWPORT_RENDER_BOX = {
 };
 
 const CAMERA_PLANE_SCALE = 0.66;
-const FLOOR_SAMPLE_WIDTH = 2;
+const FLOOR_SAMPLE_WIDTH = 5;
+const FLOOR_SAMPLE_HEIGHT = 2;
 const MAX_RENDER_DISTANCE = 24;
 const MIN_DISTANCE = 0.0001;
 
@@ -227,14 +228,15 @@ function renderFloorAndCeiling(state, camera, textureLookup) {
   const halfHeight = VIEWPORT_RENDER_BOX.internalHeight / 2;
   const posZ = halfHeight;
 
-  for (let row = Math.floor(halfHeight) + 1; row < VIEWPORT_RENDER_BOX.internalHeight; row += 1) {
+  for (let row = Math.floor(halfHeight) + 1; row < VIEWPORT_RENDER_BOX.internalHeight; row += FLOOR_SAMPLE_HEIGHT) {
     const rowDistance = posZ / Math.max(MIN_DISTANCE, row - halfHeight);
     const stepX = rowDistance * (rightRayX - leftRayX) / VIEWPORT_RENDER_BOX.internalWidth;
     const stepY = rowDistance * (rightRayY - leftRayY) / VIEWPORT_RENDER_BOX.internalWidth;
     let worldX = camera.posX + (rowDistance * leftRayX);
     let worldY = camera.posY + (rowDistance * leftRayY);
     const floorY = VIEWPORT_RENDER_BOX.y + (row * VIEWPORT_RENDER_BOX.pixelHeight);
-    const ceilingY = VIEWPORT_RENDER_BOX.y + ((VIEWPORT_RENDER_BOX.internalHeight - row - 1) * VIEWPORT_RENDER_BOX.pixelHeight);
+    const ceilingY = VIEWPORT_RENDER_BOX.y + ((VIEWPORT_RENDER_BOX.internalHeight - row - FLOOR_SAMPLE_HEIGHT) * VIEWPORT_RENDER_BOX.pixelHeight);
+    const sampleHeight = VIEWPORT_RENDER_BOX.pixelHeight * FLOOR_SAMPLE_HEIGHT;
     const floorLight = getLightLevel(rowDistance, 0.16);
     const ceilingLight = getLightLevel(rowDistance, 0.24);
 
@@ -258,7 +260,7 @@ function renderFloorAndCeiling(state, camera, textureLookup) {
           screenX,
           floorY,
           screenWidth,
-          VIEWPORT_RENDER_BOX.pixelHeight,
+          sampleHeight,
           floorTexture,
           textureX,
           textureY,
@@ -271,9 +273,9 @@ function renderFloorAndCeiling(state, camera, textureLookup) {
       if (ceilingTexture) {
         pieces.push(renderCroppedTextureRect(
           screenX,
-          ceilingY,
+          Math.max(VIEWPORT_RENDER_BOX.y, ceilingY),
           screenWidth,
-          VIEWPORT_RENDER_BOX.pixelHeight,
+          sampleHeight,
           ceilingTexture,
           textureX,
           textureY,

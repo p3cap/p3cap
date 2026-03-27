@@ -259,6 +259,31 @@ function renderViewEvent(state, frame) {
   const enemyDeathUri = state.viewEvent.type === "enemy-death"
     ? getEffectTextureUri("enemyDeath", `${state.turn}:${state.viewEvent.depth}`)
     : "";
+  const hurtEnemy = state.viewEvent.type === "shoot" && state.viewEvent.enemyId
+    ? state.enemies.find((enemy) => enemy.id === state.viewEvent.enemyId) || null
+    : null;
+  const hurtBounds = state.viewEvent.type === "shoot" && frame && state.viewEvent.x >= 0 && state.viewEvent.y >= 0
+    ? projectBillboardBounds(
+      frame,
+      hurtEnemy ? hurtEnemy.x : state.viewEvent.x,
+      hurtEnemy ? hurtEnemy.y : state.viewEvent.y,
+      { widthScale: 1.06, heightScale: 1.06 }
+    )
+    : null;
+  const hurtTextureUri = hurtEnemy ? getEnemyTextureUri(state, hurtEnemy) : "";
+
+  if (hurtBounds && hurtTextureUri) {
+    const hurtFilterId = `hurt-flash-${escapeXml(state.viewEvent.enemyId || `${state.viewEvent.x}-${state.viewEvent.y}`)}`;
+    return `
+      <defs>
+        <filter id="${hurtFilterId}" color-interpolation-filters="sRGB">
+          <feColorMatrix type="matrix" values="1.15 0 0 0 0.14 0 0.42 0 0 0 0 0 0.42 0 0 0 0 0 1 0" />
+        </filter>
+      </defs>
+      <image href="${escapeXml(hurtTextureUri)}" x="${hurtBounds.x}" y="${hurtBounds.y}" width="${hurtBounds.width}" height="${hurtBounds.height}" preserveAspectRatio="xMidYMid meet" filter="url(#${hurtFilterId})" opacity="0">
+        <animate attributeName="opacity" begin="0.5s" values="0;0.58;0" dur="280ms" fill="freeze" />
+      </image>`;
+  }
 
   if (state.viewEvent.type === "enemy-death" && enemyDeathUri && frame) {
     const bounds = projectBillboardBounds(frame, state.viewEvent.x, state.viewEvent.y, {
@@ -419,17 +444,8 @@ function renderViewSvg(rawState) {
 
   const shouldAnimate = Boolean(state.lastAction);
   const animationBegin = "0.5s";
-  const animationMs = state.lastAction && state.lastAction.startsWith("doomTurn") ? 260 : 320;
+  const animationMs = 260;
   const currentFrame = createRaycastFrame(state);
-  const moveDirection = state.lastAction || "";
-  const moveShiftX = moveDirection === "doomStrafeLeft" ? -18
-    : moveDirection === "doomStrafeRight" ? 18
-      : 0;
-  const moveShiftY = moveDirection === "doomForward" ? 18
-    : moveDirection === "doomBackward" ? -14
-      : 0;
-  const isTurn = moveDirection === "doomTurnLeft" || moveDirection === "doomTurnRight";
-  const turnAngle = moveDirection === "doomTurnLeft" ? -10 : moveDirection === "doomTurnRight" ? 10 : 0;
 
   const hpColor = state.health > 50 ? "#86efac" : state.health > 20 ? "#fde68a" : "#fca5a5";
   const mapWidth = state.mapRows[0].length;
@@ -464,11 +480,6 @@ function renderViewSvg(rawState) {
         ${shouldAnimate
           ? `<animate attributeName="opacity" begin="${animationBegin}" from="0" to="1" dur="${animationMs}ms" fill="freeze" />`
           : ""}
-        ${isTurn
-          ? `<animateTransform attributeName="transform" type="rotate" begin="${animationBegin}" from="${turnAngle} ${VIEWPORT_CENTER.x} ${VIEWPORT_CENTER.y}" to="0 ${VIEWPORT_CENTER.x} ${VIEWPORT_CENTER.y}" dur="${animationMs}ms" fill="freeze" />`
-          : (moveShiftX || moveShiftY)
-            ? `<animateTransform attributeName="transform" type="translate" begin="${animationBegin}" from="${-moveShiftX} ${-moveShiftY}" to="0 0" dur="${animationMs}ms" fill="freeze" />`
-            : ""}
         ${currentFrame.markup}
       </g>
       ${renderViewEvent(state, currentFrame)}
@@ -545,9 +556,8 @@ function renderButtonSvg(buttonType, label) {
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="150" height="58" viewBox="0 0 150 58" role="img" aria-label="${escapeXml(label)} button">
-  <rect width="150" height="58" fill="#000000" />
   ${textureUri
-    ? `<image href="${escapeXml(textureUri)}" x="0" y="0" width="150" height="58" preserveAspectRatio="none" image-rendering="pixelated" />`
+    ? `<image href="${escapeXml(textureUri)}" x="0" y="0" width="150" height="58" preserveAspectRatio="none" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />`
     : ""}
 </svg>`;
 }

@@ -93,7 +93,10 @@ function createViewEvent(type = "none", values = {}) {
     depth: clampNumber(values.depth, 0, 0, 5),
     x: clampNumber(values.x, -1, -1, 999),
     y: clampNumber(values.y, -1, -1, 999),
-    damage: clampNumber(values.damage, 0, 0, 999)
+    damage: clampNumber(values.damage, 0, 0, 999),
+    enemyId: typeof values.enemyId === "string" && values.enemyId.trim()
+      ? values.enemyId.trim()
+      : ""
   };
 }
 
@@ -951,7 +954,8 @@ function applyDoomAction(currentState, route) {
           state.viewEvent = createViewEvent("enemy-death", {
             depth: shot.depth,
             x: shot.enemy.x,
-            y: shot.enemy.y
+            y: shot.enemy.y,
+            enemyId: shot.enemy.id
           });
           state.lastLog = "You blast an enemy.";
         } else {
@@ -959,7 +963,8 @@ function applyDoomAction(currentState, route) {
           state.viewEvent = createViewEvent("shoot", {
             depth: shot.depth,
             x: shot.enemy.x,
-            y: shot.enemy.y
+            y: shot.enemy.y,
+            enemyId: shot.enemy.id
           });
           state.lastLog = "The enemy staggers.";
         }
