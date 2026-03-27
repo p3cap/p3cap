@@ -31,6 +31,7 @@ const VIEWPORT_BOX = { x: 10, y: 10, w: 700, h: 342 };
 const HUD_BOX = { x: 10, y: 360, w: 700, h: 40 };
 const RADAR_AREA = { w: 122, h: 88, inset: 10 };
 const GUN_SPRITE_BOX = { x: 334, y: 214, w: 152, h: 118 };
+const VIEWPORT_CENTER = { x: 360, y: 180 };
 
 const slug = "doom";
 
@@ -276,7 +277,122 @@ function renderViewEvent(state) {
   }
 
   return `
-    ${enemyDeathEffect}`;
+      ${enemyDeathEffect}`;
+}
+
+function withPlayer(state, playerOverride) {
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      ...playerOverride
+    }
+  };
+}
+
+function getDarknessOpacity(depth) {
+  return Math.min(0.55, 0.12 + (depth * 0.08));
+}
+
+function renderSideEnemySprite(state, enemy, depth, direction) {
+  const sprite = getEnemySpriteBounds(depth);
+  if (!sprite || !enemy) {
+    return "";
+  }
+
+  const textureUri = getEnemyTextureUri(state, enemy);
+  if (!textureUri) {
+    return "";
+  }
+
+  const scale = 0.82;
+  const offset = Math.round(sprite.w * 0.75) * (direction < 0 ? -1 : 1);
+  const w = Math.max(18, Math.round(sprite.w * scale));
+  const h = Math.max(24, Math.round(sprite.h * scale));
+  const cx = sprite.cx + offset;
+  const x = cx - Math.floor(w / 2);
+  const y = sprite.baseY - h;
+
+  return `
+  <g opacity="0.9">
+    <ellipse cx="${cx}" cy="${sprite.baseY - 4}" rx="${Math.floor(w * 0.33)}" ry="${Math.max(3, Math.floor(h * 0.08))}" fill="#000000" opacity="0.35" />
+    <image href="${escapeXml(textureUri)}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="xMidYMax meet" image-rendering="pixelated" />
+  </g>`;
+}
+
+function buildViewportScene(state) {
+  const frames = [
+    { x: 26, y: 22, w: 668, h: 308 },
+    { x: 92, y: 50, w: 536, h: 252 },
+    { x: 156, y: 80, w: 408, h: 196 },
+    { x: 218, y: 108, w: 284, h: 150 },
+    { x: 278, y: 136, w: 164, h: 106 },
+    { x: 324, y: 160, w: 72, h: 70 }
+  ];
+  const corridorLayers = [];
+  let frontWall = "";
+  let enemyInSight = null;
+  let enemyDepth = 0;
+  const sideEnemies = [];
+
+  for (let depth = 1; depth <= 5; depth += 1) {
+    const outer = frames[depth - 1];
+    const inner = frames[depth];
+    const center = getTileInDirection(state, depth, 0);
+    const left = getTileInDirection(state, depth, -1);
+    const right = getTileInDirection(state, depth, 1);
+    const leftPoints = `${outer.x},${outer.y} ${inner.x},${inner.y} ${inner.x},${inner.y + inner.h} ${outer.x},${outer.y + outer.h}`;
+    const rightPoints = `${outer.x + outer.w},${outer.y} ${inner.x + inner.w},${inner.y} ${inner.x + inner.w},${inner.y + inner.h} ${outer.x + outer.w},${outer.y + outer.h}`;
+    const ceilingPoints = `${outer.x},${outer.y} ${outer.x + outer.w},${outer.y} ${inner.x + inner.w},${inner.y} ${inner.x},${inner.y}`;
+    const floorPoints = `${outer.x},${outer.y + outer.h} ${outer.x + outer.w},${outer.y + outer.h} ${inner.x + inner.w},${inner.y + inner.h} ${inner.x},${inner.y + inner.h}`;
+
+    corridorLayers.push(renderTexturedPolygon(ceilingPoints, getSurfaceTextureUri(state, "ceiling", `${center.x}:${center.y}:ceiling:${depth}`)));
+    corridorLayers.push(`<polygon points="${ceilingPoints}" fill="none" stroke="#100908" stroke-width="1" opacity="0.45" />`);
+    corridorLayers.push(renderTexturedPolygon(floorPoints, getSurfaceTextureUri(state, "floor", `${center.x}:${center.y}:floor:${depth}`)));
+
+    if (left.wall) {
+      corridorLayers.push(renderTexturedPolygon(leftPoints, getSurfaceTextureUri(state, "wall", `${left.x}:${left.y}`)));
+      corridorLayers.push(`<polygon points="${leftPoints}" fill="none" stroke="#23120b" stroke-width="2" />`);
+    } else {
+      corridorLayers.push(`<polygon points="${leftPoints}" fill="#0c0707" />`);
+      corridorLayers.push(`<polygon points="${leftPoints}" fill="#000000" opacity="${getDarknessOpacity(depth)}" />`);
+      if (left.enemy) {
+        sideEnemies.push(renderSideEnemySprite(state, left.enemy, depth, -1));
+      }
+    }
+
+    if (right.wall) {
+      corridorLayers.push(renderTexturedPolygon(rightPoints, getSurfaceTextureUri(state, "wall", `${right.x}:${right.y}`)));
+      corridorLayers.push(`<polygon points="${rightPoints}" fill="none" stroke="#23120b" stroke-width="2" />`);
+    } else {
+      corridorLayers.push(`<polygon points="${rightPoints}" fill="#0c0707" />`);
+      corridorLayers.push(`<polygon points="${rightPoints}" fill="#000000" opacity="${getDarknessOpacity(depth)}" />`);
+      if (right.enemy) {
+        sideEnemies.push(renderSideEnemySprite(state, right.enemy, depth, 1));
+      }
+    }
+
+    if (!enemyDepth && center.enemy && !center.wall) {
+      enemyDepth = depth;
+      enemyInSight = center.enemy;
+    }
+
+    if (center.wall) {
+      frontWall = `
+        ${renderTexturedRect(inner.x, inner.y, inner.w, inner.h, getSurfaceTextureUri(state, "wall", `${center.x}:${center.y}`))}
+        <rect x="${inner.x}" y="${inner.y}" width="${inner.w}" height="${inner.h}" fill="none" stroke="#23120b" stroke-width="3" />
+      `;
+      break;
+    }
+  }
+
+  return {
+    corridorLayers,
+    frontWall,
+    enemyDepth,
+    enemyInSight,
+    sideEnemies
+  };
 }
 
 function renderOverlayEvent(state) {
@@ -300,61 +416,20 @@ function renderViewSvg(rawState) {
     return renderFloorClearSvg(state);
   }
 
-  const frames = [
-    { x: 26, y: 22, w: 668, h: 308 },
-    { x: 92, y: 50, w: 536, h: 252 },
-    { x: 156, y: 80, w: 408, h: 196 },
-    { x: 218, y: 108, w: 284, h: 150 },
-    { x: 278, y: 136, w: 164, h: 106 },
-    { x: 324, y: 160, w: 72, h: 70 }
-  ];
-  const corridorLayers = [];
-  let frontWall = "";
-  let enemyInSight = null;
-  let enemyDepth = 0;
-
-  for (let depth = 1; depth <= 5; depth += 1) {
-    const outer = frames[depth - 1];
-    const inner = frames[depth];
-    const center = getTileInDirection(state, depth, 0);
-    const left = getTileInDirection(state, depth, -1);
-    const right = getTileInDirection(state, depth, 1);
-    const leftPoints = `${outer.x},${outer.y} ${inner.x},${inner.y} ${inner.x},${inner.y + inner.h} ${outer.x},${outer.y + outer.h}`;
-    const rightPoints = `${outer.x + outer.w},${outer.y} ${inner.x + inner.w},${inner.y} ${inner.x + inner.w},${inner.y + inner.h} ${outer.x + outer.w},${outer.y + outer.h}`;
-    const ceilingPoints = `${outer.x},${outer.y} ${outer.x + outer.w},${outer.y} ${inner.x + inner.w},${inner.y} ${inner.x},${inner.y}`;
-    const floorPoints = `${outer.x},${outer.y + outer.h} ${outer.x + outer.w},${outer.y + outer.h} ${inner.x + inner.w},${inner.y + inner.h} ${inner.x},${inner.y + inner.h}`;
-
-    corridorLayers.push(renderTexturedPolygon(ceilingPoints, getSurfaceTextureUri(state, "ceiling", `${center.x}:${center.y}:ceiling:${depth}`)));
-    corridorLayers.push(`<polygon points="${ceilingPoints}" fill="none" stroke="#100908" stroke-width="1" opacity="0.45" />`);
-    corridorLayers.push(renderTexturedPolygon(floorPoints, getSurfaceTextureUri(state, "floor", `${center.x}:${center.y}:floor:${depth}`)));
-
-    if (left.wall) {
-      corridorLayers.push(renderTexturedPolygon(leftPoints, getSurfaceTextureUri(state, "wall", `${left.x}:${left.y}`)));
-      corridorLayers.push(`<polygon points="${leftPoints}" fill="none" stroke="#23120b" stroke-width="2" />`);
-    } else {
-      corridorLayers.push(`<polygon points="${leftPoints}" fill="#0c0707" />`);
-    }
-
-    if (right.wall) {
-      corridorLayers.push(renderTexturedPolygon(rightPoints, getSurfaceTextureUri(state, "wall", `${right.x}:${right.y}`)));
-      corridorLayers.push(`<polygon points="${rightPoints}" fill="none" stroke="#23120b" stroke-width="2" />`);
-    } else {
-      corridorLayers.push(`<polygon points="${rightPoints}" fill="#0c0707" />`);
-    }
-
-    if (!enemyDepth && center.enemy && !center.wall) {
-      enemyDepth = depth;
-      enemyInSight = center.enemy;
-    }
-
-    if (center.wall) {
-      frontWall = `
-        ${renderTexturedRect(inner.x, inner.y, inner.w, inner.h, getSurfaceTextureUri(state, "wall", `${center.x}:${center.y}`))}
-        <rect x="${inner.x}" y="${inner.y}" width="${inner.w}" height="${inner.h}" fill="none" stroke="#23120b" stroke-width="3" />
-      `;
-      break;
-    }
-  }
+  const shouldAnimate = Boolean(state.lastPlayer && state.lastAction);
+  const animationMs = state.lastAction && state.lastAction.startsWith("doomTurn") ? 180 : 220;
+  const previousState = shouldAnimate ? withPlayer(state, state.lastPlayer) : null;
+  const currentScene = buildViewportScene(state);
+  const previousScene = shouldAnimate ? buildViewportScene(previousState) : null;
+  const moveDirection = state.lastAction || "";
+  const moveShiftX = moveDirection === "doomStrafeLeft" ? -10
+    : moveDirection === "doomStrafeRight" ? 10
+      : 0;
+  const moveShiftY = moveDirection === "doomForward" ? 12
+    : moveDirection === "doomBackward" ? -10
+      : 0;
+  const isTurn = moveDirection === "doomTurnLeft" || moveDirection === "doomTurnRight";
+  const turnAngle = moveDirection === "doomTurnLeft" ? -6 : moveDirection === "doomTurnRight" ? 6 : 0;
 
   const hpColor = state.health > 50 ? "#86efac" : state.health > 20 ? "#fde68a" : "#fca5a5";
   const mapWidth = state.mapRows[0].length;
@@ -385,13 +460,36 @@ function renderViewSvg(rawState) {
   <rect width="720" height="420" fill="#090607" />
   <g shape-rendering="crispEdges">
     <rect x="${VIEWPORT_BOX.x}" y="${VIEWPORT_BOX.y}" width="${VIEWPORT_BOX.w}" height="${VIEWPORT_BOX.h}" fill="#120909" />
-    ${corridorLayers.join("\n")}
-    ${frontWall}
-    ${enemyDepth ? renderEnemySprite(state, enemyInSight, enemyDepth) : ""}
-    ${renderViewEvent(state)}
-    ${renderGunSprite(state)}
-    ${renderOverlayEvent(state)}
-    ${renderViewportFrame()}
+      ${shouldAnimate && previousScene ? `
+      <g opacity="1">
+        <animate attributeName="opacity" from="1" to="0" dur="${animationMs}ms" fill="freeze" />
+        ${isTurn
+          ? `<animateTransform attributeName="transform" type="rotate" from="${turnAngle} ${VIEWPORT_CENTER.x} ${VIEWPORT_CENTER.y}" to="0 ${VIEWPORT_CENTER.x} ${VIEWPORT_CENTER.y}" dur="${animationMs}ms" fill="freeze" />`
+          : `<animateTransform attributeName="transform" type="translate" from="${moveShiftX} ${moveShiftY}" to="0 0" dur="${animationMs}ms" fill="freeze" />`}
+        ${previousScene.corridorLayers.join("\n")}
+        ${previousScene.frontWall}
+        ${previousScene.sideEnemies.join("\n")}
+        ${previousScene.enemyDepth ? renderEnemySprite(previousState, previousScene.enemyInSight, previousScene.enemyDepth) : ""}
+      </g>
+      ` : ""}
+      <g opacity="${shouldAnimate ? "0" : "1"}">
+        ${shouldAnimate
+          ? `<animate attributeName="opacity" from="0" to="1" dur="${animationMs}ms" fill="freeze" />`
+          : ""}
+        ${isTurn
+          ? `<animateTransform attributeName="transform" type="rotate" from="${turnAngle} ${VIEWPORT_CENTER.x} ${VIEWPORT_CENTER.y}" to="0 ${VIEWPORT_CENTER.x} ${VIEWPORT_CENTER.y}" dur="${animationMs}ms" fill="freeze" />`
+          : (moveShiftX || moveShiftY)
+            ? `<animateTransform attributeName="transform" type="translate" from="${-moveShiftX} ${-moveShiftY}" to="0 0" dur="${animationMs}ms" fill="freeze" />`
+            : ""}
+        ${currentScene.corridorLayers.join("\n")}
+        ${currentScene.frontWall}
+        ${currentScene.sideEnemies.join("\n")}
+        ${currentScene.enemyDepth ? renderEnemySprite(state, currentScene.enemyInSight, currentScene.enemyDepth) : ""}
+      </g>
+      ${renderViewEvent(state)}
+      ${renderGunSprite(state)}
+      ${renderOverlayEvent(state)}
+      ${renderViewportFrame()}
     ${renderBottomStats(state, hpColor)}
     ${radarTiles}
     ${radarEnemies}
