@@ -11,6 +11,7 @@ const DOOM_ASSET_DIRECTORIES = {
 const SUPPORTED_TEXTURE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"]);
 const MANUAL_TEXTURE_CACHE = new Map();
 const POINT_BOUNDS_CACHE = new Map();
+const TEXTURE_VIRTUAL_SIZE = 64;
 
 const SURFACE_TEXTURES = {
   wall: { directory: "map", prefixes: ["wall"] },
@@ -202,11 +203,37 @@ function renderTexturedRect(x, y, width, height, textureUri) {
   return `<image href="${escapeXml(textureUri)}" x="${x}" y="${y}" width="${width}" height="${height}" preserveAspectRatio="none" image-rendering="pixelated" />`;
 }
 
+function renderCroppedTextureRect(
+  x,
+  y,
+  width,
+  height,
+  textureUri,
+  viewBoxX = 0,
+  viewBoxY = 0,
+  viewBoxWidth = TEXTURE_VIRTUAL_SIZE,
+  viewBoxHeight = TEXTURE_VIRTUAL_SIZE,
+  opacity = 1
+) {
+  if (!textureUri || width <= 0 || height <= 0 || viewBoxWidth <= 0 || viewBoxHeight <= 0) {
+    return "";
+  }
+
+  const normalizedOpacity = Math.max(0, Math.min(1, Number(opacity) || 0));
+  const opacityAttribute = normalizedOpacity >= 0.999
+    ? ""
+    : ` opacity="${normalizedOpacity.toFixed(3)}"`;
+
+  return `<svg x="${x}" y="${y}" width="${width}" height="${height}" viewBox="${viewBoxX} ${viewBoxY} ${viewBoxWidth} ${viewBoxHeight}" preserveAspectRatio="none" overflow="hidden"${opacityAttribute}><image href="${escapeXml(textureUri)}" x="0" y="0" width="${TEXTURE_VIRTUAL_SIZE}" height="${TEXTURE_VIRTUAL_SIZE}" preserveAspectRatio="none" image-rendering="pixelated" /></svg>`;
+}
+
 module.exports = {
   getButtonTextureUri,
   getEffectTextureUri,
   getEnemyTextureUri,
   getSurfaceTextureUri,
+  renderCroppedTextureRect,
   renderTexturedPolygon,
-  renderTexturedRect
+  renderTexturedRect,
+  TEXTURE_VIRTUAL_SIZE
 };

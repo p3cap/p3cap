@@ -20,6 +20,10 @@ const {
   renderTexturedPolygon,
   renderTexturedRect
 } = require("./doom-textures");
+const {
+  createRaycastFrame,
+  projectBillboardBounds
+} = require("./doom-raycaster");
 
 const ENEMY_SPRITE_BY_DEPTH = {
   1: { cx: 360, baseY: 308, w: 126, h: 168 },
@@ -251,33 +255,23 @@ function renderFloorClearSvg(state) {
 </svg>`;
 }
 
-function renderViewEvent(state) {
+function renderViewEvent(state, frame) {
   const enemyDeathUri = state.viewEvent.type === "enemy-death"
     ? getEffectTextureUri("enemyDeath", `${state.turn}:${state.viewEvent.depth}`)
     : "";
 
-  let enemyDeathEffect = "";
-  if (state.viewEvent.type === "enemy-death") {
-    const sprite = getEnemySpriteBounds(state.viewEvent.depth);
-    if (sprite) {
-      if (enemyDeathUri) {
-        enemyDeathEffect = `
-    <image href="${escapeXml(enemyDeathUri)}" x="${sprite.x - 14}" y="${sprite.y - 10}" width="${sprite.w + 28}" height="${sprite.h + 20}" preserveAspectRatio="xMidYMid meet" image-rendering="pixelated" />`;
-      } else {
-        const cx = sprite.x + Math.floor(sprite.w / 2);
-        const cy = sprite.y + Math.floor(sprite.h / 2);
-        const burst = `${cx - 12},${cy - 2} ${cx - 2},${cy - 2} ${cx - 2},${cy - 12} ${cx + 2},${cy - 12} ${cx + 2},${cy - 2} ${cx + 12},${cy - 2} ${cx + 12},${cy + 2} ${cx + 2},${cy + 2} ${cx + 2},${cy + 12} ${cx - 2},${cy + 12} ${cx - 2},${cy + 2} ${cx - 12},${cy + 2}`;
-        enemyDeathEffect = `
-    <g>
-      <polygon points="${burst}" fill="#f87171" opacity="0.9" />
-      <text x="${cx}" y="${cy - 14}" text-anchor="middle" fill="#fde68a" font-size="10" font-family="'Courier New', monospace">ENEMY DOWN</text>
-    </g>`;
-      }
+  if (state.viewEvent.type === "enemy-death" && enemyDeathUri && frame) {
+    const bounds = projectBillboardBounds(frame, state.viewEvent.x, state.viewEvent.y, {
+      widthScale: 1.18,
+      heightScale: 1.18
+    });
+    if (bounds) {
+      return `
+      <image href="${escapeXml(enemyDeathUri)}" x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}" preserveAspectRatio="xMidYMid meet" image-rendering="pixelated" />`;
     }
   }
 
-  return `
-      ${enemyDeathEffect}`;
+  return "";
 }
 
 function withPlayer(state, playerOverride) {
@@ -426,8 +420,8 @@ function renderViewSvg(rawState) {
   const shouldAnimate = Boolean(state.lastPlayer && state.lastAction);
   const animationMs = state.lastAction && state.lastAction.startsWith("doomTurn") ? 180 : 220;
   const previousState = shouldAnimate ? withPlayer(state, state.lastPlayer) : null;
-  const currentScene = buildViewportScene(state);
-  const previousScene = shouldAnimate ? buildViewportScene(previousState) : null;
+  const currentFrame = createRaycastFrame(state);
+  const previousFrame = shouldAnimate ? createRaycastFrame(previousState) : null;
   const moveDirection = state.lastAction || "";
   const moveShiftX = moveDirection === "doomStrafeLeft" ? -10
     : moveDirection === "doomStrafeRight" ? 10
@@ -467,16 +461,13 @@ function renderViewSvg(rawState) {
   <rect width="720" height="420" fill="#090607" />
   <g shape-rendering="crispEdges">
     <rect x="${VIEWPORT_BOX.x}" y="${VIEWPORT_BOX.y}" width="${VIEWPORT_BOX.w}" height="${VIEWPORT_BOX.h}" fill="#120909" />
-      ${shouldAnimate && previousScene ? `
+      ${shouldAnimate && previousFrame ? `
       <g opacity="1">
         <animate attributeName="opacity" from="1" to="0" dur="${animationMs}ms" fill="freeze" />
         ${isTurn
           ? `<animateTransform attributeName="transform" type="rotate" from="${turnAngle} ${VIEWPORT_CENTER.x} ${VIEWPORT_CENTER.y}" to="0 ${VIEWPORT_CENTER.x} ${VIEWPORT_CENTER.y}" dur="${animationMs}ms" fill="freeze" />`
           : `<animateTransform attributeName="transform" type="translate" from="${moveShiftX} ${moveShiftY}" to="0 0" dur="${animationMs}ms" fill="freeze" />`}
-        ${previousScene.corridorLayers.join("\n")}
-        ${previousScene.frontWall}
-        ${previousScene.sideEnemies.join("\n")}
-        ${previousScene.enemyDepth ? renderEnemySprite(previousState, previousScene.enemyInSight, previousScene.enemyDepth) : ""}
+        ${previousFrame.markup}
       </g>
       ` : ""}
       <g opacity="${shouldAnimate ? "0" : "1"}">
@@ -488,12 +479,9 @@ function renderViewSvg(rawState) {
           : (moveShiftX || moveShiftY)
             ? `<animateTransform attributeName="transform" type="translate" from="${-moveShiftX} ${-moveShiftY}" to="0 0" dur="${animationMs}ms" fill="freeze" />`
             : ""}
-        ${currentScene.corridorLayers.join("\n")}
-        ${currentScene.frontWall}
-        ${currentScene.sideEnemies.join("\n")}
-        ${currentScene.enemyDepth ? renderEnemySprite(state, currentScene.enemyInSight, currentScene.enemyDepth) : ""}
+        ${currentFrame.markup}
       </g>
-      ${renderViewEvent(state)}
+      ${renderViewEvent(state, currentFrame)}
       ${renderGunSprite(state)}
       ${renderOverlayEvent(state)}
       ${renderViewportFrame()}

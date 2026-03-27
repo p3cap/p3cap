@@ -36,3 +36,5 @@ Supported file types:
 - `.svg`
 
 The renderer randomly picks from matching variants per surface/button/effect. There are no built-in Doom textures anymore, and missing Doom texture assets now render as empty space instead of code-made stand-ins.
+
+For the raycast view, textures are sampled on a virtual `64x64` grid. Square textures work best for walls, floors, ceilings, enemies, and gun art.
