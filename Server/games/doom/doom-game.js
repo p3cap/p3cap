@@ -34,7 +34,7 @@ const ENEMY_SPRITE_BY_DEPTH = {
 const VIEWPORT_BOX = { x: 10, y: 10, w: 700, h: 342 };
 const HUD_BOX = { x: 10, y: 360, w: 700, h: 40 };
 const RADAR_AREA = { w: 122, h: 88, inset: 10 };
-const GUN_SPRITE_BOX = { x: 334, y: 214, w: 152, h: 118 };
+const GUN_SPRITE_BOX = { x: 334, y: 234, w: 152, h: 118 };
 const VIEWPORT_CENTER = { x: 360, y: 180 };
 
 const slug = "doom";
@@ -183,7 +183,7 @@ function renderGunSprite(state) {
 
   return `
     <g>
-      <ellipse cx="410" cy="332" rx="58" ry="11" fill="#000000" opacity="0.24" />
+      <ellipse cx="410" cy="344" rx="58" ry="11" fill="#000000" opacity="0.24" />
       ${renderTexturedRect(GUN_SPRITE_BOX.x, GUN_SPRITE_BOX.y, GUN_SPRITE_BOX.w, GUN_SPRITE_BOX.h, textureUri)}
     </g>`;
 }
@@ -291,8 +291,38 @@ function renderViewEvent(state, frame) {
       heightScale: 1.18
     });
     if (bounds) {
+      const splashId = `death-splash-${escapeXml(state.viewEvent.enemyId || `${state.viewEvent.x}-${state.viewEvent.y}`)}`;
+      const splashX = Math.max(VIEWPORT_BOX.x, bounds.x - Math.floor(bounds.width * 0.65));
+      const splashY = Math.max(VIEWPORT_BOX.y, bounds.y - Math.floor(bounds.height * 0.28));
+      const splashWidth = Math.min(
+        VIEWPORT_BOX.x + VIEWPORT_BOX.w - splashX,
+        Math.floor(bounds.width * 2.3)
+      );
+      const splashHeight = Math.min(
+        VIEWPORT_BOX.y + VIEWPORT_BOX.h - splashY,
+        Math.floor(bounds.height * 1.35)
+      );
+      const centerX = bounds.x + Math.floor(bounds.width / 2);
+      const centerY = bounds.y + Math.floor(bounds.height * 0.42);
+      const deathAnimDelay = "0.78s";
+
       return `
-      <image href="${escapeXml(enemyDeathUri)}" x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}" preserveAspectRatio="xMidYMid meet" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />`;
+      <defs>
+        <radialGradient id="${splashId}-gradient" cx="50%" cy="45%" r="62%">
+          <stop offset="0%" stop-color="#7f1d1d" stop-opacity="0.92" />
+          <stop offset="55%" stop-color="#991b1b" stop-opacity="0.52" />
+          <stop offset="100%" stop-color="#3f0a0a" stop-opacity="0" />
+        </radialGradient>
+      </defs>
+      <image href="${escapeXml(enemyDeathUri)}" x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}" preserveAspectRatio="xMidYMid meet" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />
+      <g opacity="0">
+        <animate attributeName="opacity" begin="${deathAnimDelay}" values="0;0.72;0.6" dur="420ms" fill="freeze" />
+        <ellipse cx="${centerX}" cy="${centerY}" rx="${Math.floor(splashWidth * 0.28)}" ry="${Math.floor(splashHeight * 0.34)}" fill="url(#${splashId}-gradient)" />
+        <ellipse cx="${centerX - Math.floor(bounds.width * 0.34)}" cy="${centerY + Math.floor(bounds.height * 0.06)}" rx="${Math.floor(splashWidth * 0.24)}" ry="${Math.floor(splashHeight * 0.26)}" fill="url(#${splashId}-gradient)" />
+        <ellipse cx="${centerX + Math.floor(bounds.width * 0.3)}" cy="${centerY - Math.floor(bounds.height * 0.02)}" rx="${Math.floor(splashWidth * 0.22)}" ry="${Math.floor(splashHeight * 0.24)}" fill="url(#${splashId}-gradient)" />
+        <ellipse cx="${centerX - Math.floor(bounds.width * 0.12)}" cy="${centerY - Math.floor(bounds.height * 0.16)}" rx="${Math.floor(splashWidth * 0.18)}" ry="${Math.floor(splashHeight * 0.16)}" fill="url(#${splashId}-gradient)" />
+        <rect x="${splashX}" y="${splashY}" width="${splashWidth}" height="${splashHeight}" fill="#b91c1c" opacity="0.08" />
+      </g>`;
     }
   }
 

@@ -122,13 +122,19 @@ function getSurfaceTextureUri(state, surfaceType, variantKey) {
 }
 
 function getEnemyTextureUri(state, enemy) {
-  const isTough = enemy && enemy.hp >= 2;
   const variantKey = `${state.mapSeed}:${enemy ? enemy.id : "enemy"}`;
+  const hp = Math.max(1, Math.floor(Number(enemy && enemy.hp) || 1));
 
-  if (isTough) {
-    const toughCandidates = getManualTextureCandidates("characters", ["enemy-2", "enemy-2hit", "enemy-strong"]);
-    if (toughCandidates.length > 0) {
-      return toughCandidates[hashString(variantKey) % toughCandidates.length];
+  for (let tier = hp; tier >= 1; tier -= 1) {
+    const tierCandidates = getManualTextureCandidates("characters", [
+      `enemy-${tier}`,
+      `enemy_${tier}`,
+      `enemy-imp-${tier}`,
+      `enemy_imp_${tier}`,
+      tier === 1 ? "enemy" : ""
+    ]);
+    if (tierCandidates.length > 0) {
+      return tierCandidates[hashString(`${variantKey}:${tier}`) % tierCandidates.length];
     }
   }
 

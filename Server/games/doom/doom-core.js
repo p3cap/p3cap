@@ -1,3 +1,6 @@
+const fs = require("fs");
+const path = require("path");
+
 const DIRECTION_ORDER = ["N", "E", "S", "W"];
 const DIRECTION_DELTAS = {
   N: { x: 0, y: -1 },
@@ -20,6 +23,9 @@ const DEFAULT_THEME_NAME = "rust";
 const THEME_NAMES = ["rust", "tech", "crypt"];
 const VIEW_EVENT_TYPES = new Set(["none", "shoot", "enemy-death", "player-death"]);
 const OVERLAY_EVENT_TYPES = new Set(["none", "player-hurt"]);
+const DOOM_CHARACTER_ASSET_DIR = path.join(__dirname, "..", "..", "assets", "doom", "characters");
+const SUPPORTED_ENEMY_ASSET_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"]);
+let enemyHpTierCache = null;
 
 function escapeXml(value) {
   return String(value)
@@ -85,6 +91,50 @@ function createRandomSeed() {
 
 function normalizeThemeName(candidate) {
   return THEME_NAMES.includes(candidate) ? candidate : DEFAULT_THEME_NAME;
+}
+
+function getAvailableEnemyHpTiers() {
+  if (enemyHpTierCache) {
+    return enemyHpTierCache;
+  }
+
+  const tiers = new Set();
+
+  try {
+    if (fs.existsSync(DOOM_CHARACTER_ASSET_DIR)) {
+      const files = fs.readdirSync(DOOM_CHARACTER_ASSET_DIR);
+      for (const fileName of files) {
+        const extension = path.extname(fileName).toLowerCase();
+        if (!SUPPORTED_ENEMY_ASSET_EXTENSIONS.has(extension)) {
+          continue;
+        }
+
+        const match = /^enemy(?:-[a-z0-9_]+)?(?:-(\d+))?\.(png|jpg|jpeg|webp|gif|svg)$/i.exec(fileName);
+        if (!match) {
+          continue;
+        }
+
+        const tier = Number(match[1] || 1);
+        if (Number.isFinite(tier) && tier >= 1) {
+          tiers.add(Math.floor(tier));
+        }
+      }
+    }
+  } catch (error) {
+    // Ignore asset scan failures and fall back to tier 1.
+  }
+
+  enemyHpTierCache = tiers.size > 0
+    ? Array.from(tiers).sort((left, right) => left - right)
+    : [1];
+  return enemyHpTierCache;
+}
+
+function getMaxEnemyHpForFloor(floor) {
+  const difficultyCap = floor >= 7 ? 3 : floor >= 4 ? 2 : 1;
+  const availableTiers = getAvailableEnemyHpTiers();
+  const assetCap = availableTiers[availableTiers.length - 1] || 1;
+  return Math.max(1, Math.min(difficultyCap, assetCap));
 }
 
 function createViewEvent(type = "none", values = {}) {
@@ -436,7 +486,7 @@ function createEnemiesForFloor(mapRows, start, floor, mapSeed) {
 
   const enemies = [];
   const count = Math.min(12, 2 + Math.floor(floor * 0.9));
-  const hp = floor >= 7 ? 3 : floor >= 4 ? 2 : 1;
+  const hp = getMaxEnemyHpForFloor(floor);
 
   for (const cell of fallbackCells) {
     const tooClose = enemies.some((enemy) => Math.abs(enemy.x - cell.x) + Math.abs(enemy.y - cell.y) < 2);
