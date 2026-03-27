@@ -194,7 +194,7 @@ function renderViewportFrame() {
     return "";
   }
 
-  return `<image href="${escapeXml(frameUri)}" x="0" y="0" width="720" height="420" preserveAspectRatio="none" />`;
+  return `<image href="${escapeXml(frameUri)}" x="0" y="0" width="720" height="420" preserveAspectRatio="none" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />`;
 }
 
 function renderBottomStats(state, hpColor) {
@@ -220,10 +220,10 @@ function renderDeathViewSvg(state) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-label="Doom death screen">
   ${deathScreenUri
-    ? `<image href="${escapeXml(deathScreenUri)}" x="0" y="0" width="720" height="420" preserveAspectRatio="none" />`
+    ? `<image href="${escapeXml(deathScreenUri)}" x="0" y="0" width="720" height="420" preserveAspectRatio="none" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />`
     : ""}
   ${bloodUri
-    ? `<image href="${escapeXml(bloodUri)}" x="210" y="224" width="300" height="118" preserveAspectRatio="none" />`
+    ? `<image href="${escapeXml(bloodUri)}" x="210" y="224" width="300" height="118" preserveAspectRatio="none" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />`
     : ""}
   <text x="360" y="160" text-anchor="middle" fill="#ffe4e6" font-size="40" font-family="'Courier New', monospace" opacity="0">You deid
     <animate attributeName="opacity" values="0;0;1" dur="760ms" fill="freeze" />
@@ -244,7 +244,7 @@ function renderFloorClearSvg(state) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-label="Floor clear screen">
   ${panelUri
-    ? `<image href="${escapeXml(panelUri)}" x="0" y="0" width="720" height="420" preserveAspectRatio="none" />`
+    ? `<image href="${escapeXml(panelUri)}" x="0" y="0" width="720" height="420" preserveAspectRatio="none" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />`
     : ""}
   <text x="360" y="138" text-anchor="middle" fill="#fca5a5" font-size="24" font-family="'Courier New', monospace">FLOOR CLEARED</text>
   <text x="360" y="186" text-anchor="middle" fill="#f8fafc" font-size="30" font-family="'Courier New', monospace">Congrats, you&apos;ve beaten floor ${escapeXml(String(state.floor))}</text>
@@ -267,7 +267,7 @@ function renderViewEvent(state, frame) {
     });
     if (bounds) {
       return `
-      <image href="${escapeXml(enemyDeathUri)}" x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}" preserveAspectRatio="xMidYMid meet" />`;
+      <image href="${escapeXml(enemyDeathUri)}" x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}" preserveAspectRatio="xMidYMid meet" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />`;
     }
   }
 
@@ -281,21 +281,6 @@ function withPlayer(state, playerOverride) {
       ...state.player,
       ...playerOverride
     }
-  };
-}
-
-function withSceneState(state, { playerOverride = null, enemiesOverride = null } = {}) {
-  return {
-    ...state,
-    player: playerOverride
-      ? {
-        ...state.player,
-        ...playerOverride
-      }
-      : state.player,
-    enemies: Array.isArray(enemiesOverride)
-      ? enemiesOverride.map((enemy) => ({ ...enemy }))
-      : state.enemies
   };
 }
 
@@ -420,7 +405,7 @@ function renderOverlayEvent(state) {
     return "";
   }
 
-  return `<image href="${escapeXml(damageFrameUri)}" x="0" y="0" width="720" height="420" preserveAspectRatio="none" />`;
+  return `<image href="${escapeXml(damageFrameUri)}" x="0" y="0" width="720" height="420" preserveAspectRatio="none" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />`;
 }
 
 function renderViewSvg(rawState) {
@@ -432,15 +417,10 @@ function renderViewSvg(rawState) {
     return renderFloorClearSvg(state);
   }
 
-  const shouldAnimate = Boolean(state.lastAction && (state.lastPlayer || state.lastEnemies));
+  const shouldAnimate = Boolean(state.lastAction);
   const animationBegin = "0.5s";
   const animationMs = state.lastAction && state.lastAction.startsWith("doomTurn") ? 260 : 320;
-  const previousState = shouldAnimate ? withSceneState(state, {
-    playerOverride: state.lastPlayer,
-    enemiesOverride: state.lastEnemies
-  }) : null;
   const currentFrame = createRaycastFrame(state);
-  const previousFrame = shouldAnimate ? createRaycastFrame(previousState) : null;
   const moveDirection = state.lastAction || "";
   const moveShiftX = moveDirection === "doomStrafeLeft" ? -18
     : moveDirection === "doomStrafeRight" ? 18
@@ -480,15 +460,6 @@ function renderViewSvg(rawState) {
   <rect width="720" height="420" fill="#090607" />
   <g>
     <rect x="${VIEWPORT_BOX.x}" y="${VIEWPORT_BOX.y}" width="${VIEWPORT_BOX.w}" height="${VIEWPORT_BOX.h}" fill="#120909" />
-      ${shouldAnimate && previousFrame ? `
-      <g opacity="1">
-        <animate attributeName="opacity" begin="${animationBegin}" from="1" to="0" dur="${animationMs}ms" fill="freeze" />
-        ${isTurn
-          ? `<animateTransform attributeName="transform" type="rotate" begin="${animationBegin}" from="${turnAngle} ${VIEWPORT_CENTER.x} ${VIEWPORT_CENTER.y}" to="0 ${VIEWPORT_CENTER.x} ${VIEWPORT_CENTER.y}" dur="${animationMs}ms" fill="freeze" />`
-          : `<animateTransform attributeName="transform" type="translate" begin="${animationBegin}" from="${moveShiftX} ${moveShiftY}" to="0 0" dur="${animationMs}ms" fill="freeze" />`}
-        ${previousFrame.markup}
-      </g>
-      ` : ""}
       <g opacity="${shouldAnimate ? "0" : "1"}">
         ${shouldAnimate
           ? `<animate attributeName="opacity" begin="${animationBegin}" from="0" to="1" dur="${animationMs}ms" fill="freeze" />`

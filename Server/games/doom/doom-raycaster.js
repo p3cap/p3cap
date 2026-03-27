@@ -422,7 +422,7 @@ function renderEnemies(state, frame, textureLookup) {
     </defs>
     <g opacity="${light.toFixed(3)}">
       <animateTransform attributeName="transform" type="translate" begin="${hasMovementAnimation ? "0.84s" : "0.5s"}" dur="1700ms" values="0 0;0 -${bobOffset};0 0" keyTimes="0;0.5;1" repeatCount="indefinite" />
-      <image href="${escapeXml(textureUri)}" x="${currentBounds.x}" y="${currentBounds.y}" width="${currentBounds.width}" height="${currentBounds.height}" preserveAspectRatio="xMidYMax meet" clip-path="url(#${clipId})">
+      <image href="${escapeXml(textureUri)}" x="${currentBounds.x}" y="${currentBounds.y}" width="${currentBounds.width}" height="${currentBounds.height}" preserveAspectRatio="xMidYMax meet" clip-path="url(#${clipId})" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;">
         ${movementMarkup}
       </image>
     </g>`);

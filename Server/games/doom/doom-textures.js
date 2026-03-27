@@ -191,7 +191,7 @@ function renderTexturedPolygon(points, textureUri) {
       <polygon points="${points}" />
     </clipPath>
   </defs>
-  <image href="${escapeXml(textureUri)}" x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}" preserveAspectRatio="none" clip-path="url(#${clipId})" />
+  <image href="${escapeXml(textureUri)}" x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}" preserveAspectRatio="none" clip-path="url(#${clipId})" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />
   `;
 }
 
@@ -200,7 +200,7 @@ function renderTexturedRect(x, y, width, height, textureUri) {
     return "";
   }
 
-  return `<image href="${escapeXml(textureUri)}" x="${x}" y="${y}" width="${width}" height="${height}" preserveAspectRatio="none" />`;
+  return `<image href="${escapeXml(textureUri)}" x="${x}" y="${y}" width="${width}" height="${height}" preserveAspectRatio="none" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />`;
 }
 
 function renderCroppedTextureRect(
@@ -224,7 +224,7 @@ function renderCroppedTextureRect(
     ? ""
     : ` opacity="${normalizedOpacity.toFixed(3)}"`;
 
-  return `<svg x="${x}" y="${y}" width="${width}" height="${height}" viewBox="${viewBoxX} ${viewBoxY} ${viewBoxWidth} ${viewBoxHeight}" preserveAspectRatio="none" overflow="hidden"${opacityAttribute}><image href="${escapeXml(textureUri)}" x="0" y="0" width="${TEXTURE_VIRTUAL_SIZE}" height="${TEXTURE_VIRTUAL_SIZE}" preserveAspectRatio="none" /></svg>`;
+  return `<svg x="${x}" y="${y}" width="${width}" height="${height}" viewBox="${viewBoxX} ${viewBoxY} ${viewBoxWidth} ${viewBoxHeight}" preserveAspectRatio="none" overflow="hidden"${opacityAttribute}><image href="${escapeXml(textureUri)}" x="0" y="0" width="${TEXTURE_VIRTUAL_SIZE}" height="${TEXTURE_VIRTUAL_SIZE}" preserveAspectRatio="none" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" /></svg>`;
 }
 
 module.exports = {
