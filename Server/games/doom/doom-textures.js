@@ -16,7 +16,7 @@ const SURFACE_TEXTURES = {
   wall: { directory: "map", prefixes: ["wall"] },
   ceiling: { directory: "map", prefixes: ["ceiling"] },
   floor: { directory: "map", prefixes: ["floor"] },
-  enemy: { directory: "characters", prefixes: ["enemy-imp"] },
+  enemy: { directory: "characters", prefixes: ["enemy"] },
   gun: { directory: "characters", prefixes: ["gun"] }
 };
 
@@ -30,7 +30,7 @@ const UI_TEXTURES = {
   shoot: { directory: "ui", prefixes: ["btn-shoot", "btn_shoot"] },
   wait: { directory: "ui", prefixes: ["btn-wait", "btn_wait"] },
   gunShot: { directory: "characters", prefixes: ["anim-gun-shot", "anim_gun_shot"] },
-  enemyDeath: { directory: "characters", prefixes: ["anim-imp-death", "anim_imp_death"] },
+  enemyDeath: { directory: "characters", prefixes: ["anim-enemy-death", "anim_enemy_death"] },
   playerDeath: { directory: "ui", prefixes: ["anim-player-death", "anim_player_death"] },
   damageFrame: { directory: "ui", prefixes: ["anim-damage-frame", "anim_damage_frame"] },
   deathScreen: { directory: "ui", prefixes: ["screen-death"] },
@@ -120,6 +120,20 @@ function getSurfaceTextureUri(state, surfaceType, variantKey) {
   );
 }
 
+function getEnemyTextureUri(state, enemy) {
+  const isTough = enemy && enemy.hp >= 2;
+  const variantKey = `${state.mapSeed}:${enemy ? enemy.id : "enemy"}`;
+
+  if (isTough) {
+    const toughCandidates = getManualTextureCandidates("characters", ["enemy-2", "enemy-2hit", "enemy-strong"]);
+    if (toughCandidates.length > 0) {
+      return toughCandidates[hashString(variantKey) % toughCandidates.length];
+    }
+  }
+
+  return getTextureUri("characters", ["enemy"], variantKey);
+}
+
 function getButtonTextureUri(buttonType) {
   const asset = UI_TEXTURES[buttonType];
   if (!asset) {
@@ -191,6 +205,7 @@ function renderTexturedRect(x, y, width, height, textureUri) {
 module.exports = {
   getButtonTextureUri,
   getEffectTextureUri,
+  getEnemyTextureUri,
   getSurfaceTextureUri,
   renderTexturedPolygon,
   renderTexturedRect

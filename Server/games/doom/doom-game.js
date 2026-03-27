@@ -14,6 +14,7 @@ const {
 } = require("./doom-core");
 const {
   getButtonTextureUri,
+  getEnemyTextureUri,
   getEffectTextureUri,
   getSurfaceTextureUri,
   renderTexturedPolygon,
@@ -139,7 +140,7 @@ function renderEnemySprite(state, enemy, depth) {
     return "";
   }
 
-  const textureUri = getSurfaceTextureUri(state, "enemy", enemy.id);
+  const textureUri = getEnemyTextureUri(state, enemy);
   if (!textureUri) {
     return "";
   }

@@ -8,10 +8,11 @@ Supported prefixes:
 - `map/wall.*` or multiple variants like `map/wall-a.*`, `map/wall-2.*`
 - `map/ceiling.*` or multiple variants like `map/ceiling-a.*`, `map/ceiling-2.*`
 - `map/floor.*` or multiple variants like `map/floor-a.*`, `map/floor-2.*`
-- `characters/enemy-imp.*` or multiple variants like `characters/enemy-imp-a.*`, `characters/enemy-imp-2.*`
+- `characters/enemy.*` or multiple variants like `characters/enemy-a.*`, `characters/enemy-2.*`
+- `characters/enemy-2.*` for 2-hit enemies (falls back to `enemy.*` if missing)
 - `characters/gun.*` or multiple variants like `characters/gun-a.*`, `characters/gun-2.*`
 - `characters/anim-gun-shot.*` or `characters/anim_gun_shot.*`
-- `characters/anim-imp-death.*` or `characters/anim_imp_death.*`
+- `characters/anim-enemy-death.*` or `characters/anim_enemy_death.*`
 - `ui/btn-forward.*`
 - `ui/btn-backward.*`
 - `ui/btn-turn-l.*`

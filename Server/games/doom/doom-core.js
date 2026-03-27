@@ -179,6 +179,51 @@ function createWallGrid(width, height) {
   return Array.from({ length: height }, () => Array.from({ length: width }, () => "#"));
 }
 
+function pickRandomMazeStart(grid, rng) {
+  const width = grid[0].length;
+  const height = grid.length;
+  const x = 1 + (Math.floor(rng() * Math.max(1, Math.floor((width - 2) / 2))) * 2);
+  const y = 1 + (Math.floor(rng() * Math.max(1, Math.floor((height - 2) / 2))) * 2);
+  return { x, y };
+}
+
+function getOpenNeighborCount(grid, x, y) {
+  let count = 0;
+  for (const delta of Object.values(DIRECTION_DELTAS)) {
+    const nx = x + delta.x;
+    const ny = y + delta.y;
+    if (ny < 0 || ny >= grid.length || nx < 0 || nx >= grid[0].length) {
+      continue;
+    }
+    if (grid[ny][nx] === ".") {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function pickSafeSpawn(grid, rng, fallback) {
+  const candidates = [];
+
+  for (let y = 1; y < grid.length - 1; y += 1) {
+    for (let x = 1; x < grid[0].length - 1; x += 1) {
+      if (grid[y][x] !== ".") {
+        continue;
+      }
+      if (getOpenNeighborCount(grid, x, y) < 2) {
+        continue;
+      }
+      candidates.push({ x, y });
+    }
+  }
+
+  if (candidates.length === 0) {
+    return fallback;
+  }
+
+  return candidates[Math.floor(rng() * candidates.length)];
+}
+
 function carveMaze(grid, x, y, rng) {
   grid[y][x] = ".";
   const directions = shuffleInPlace([
@@ -356,7 +401,7 @@ function createDistanceMap(mapRows, start) {
 function createEnemy({ id, x, y, hp = 1 }) {
   return {
     id,
-    type: "imp",
+    type: "enemy",
     x,
     y,
     hp
@@ -387,8 +432,8 @@ function createEnemiesForFloor(mapRows, start, floor, mapSeed) {
   shuffleInPlace(fallbackCells, rng);
 
   const enemies = [];
-  const count = Math.min(10, 2 + floor);
-  const hp = floor >= 6 ? 3 : floor >= 4 ? 2 : 1;
+  const count = Math.min(12, 2 + Math.floor(floor * 0.9));
+  const hp = floor >= 7 ? 3 : floor >= 4 ? 2 : 1;
 
   for (const cell of fallbackCells) {
     const tooClose = enemies.some((enemy) => Math.abs(enemy.x - cell.x) + Math.abs(enemy.y - cell.y) < 2);
@@ -397,7 +442,7 @@ function createEnemiesForFloor(mapRows, start, floor, mapSeed) {
     }
 
     enemies.push(createEnemy({
-      id: `imp-${floor}-${enemies.length + 1}`,
+      id: `enemy-${floor}-${enemies.length + 1}`,
       x: cell.x,
       y: cell.y,
       hp
@@ -411,23 +456,30 @@ function createEnemiesForFloor(mapRows, start, floor, mapSeed) {
   return enemies;
 }
 
+function getEnemyHpTotal(enemies) {
+  return enemies.reduce((sum, enemy) => sum + Math.max(0, enemy.hp || 0), 0);
+}
+
 function generateFloorLayout(floor, mapSeed) {
   const dimensions = getFloorDimensions(floor);
   const rng = createSeededRng(mixSeed("layout", floor, mapSeed, dimensions.width, dimensions.height));
   const grid = createWallGrid(dimensions.width, dimensions.height);
-  const playerStart = {
-    x: 1,
-    y: dimensions.height - 2,
-    facing: "N"
-  };
+  const carveStart = pickRandomMazeStart(grid, rng);
 
-  carveMaze(grid, playerStart.x, playerStart.y, rng);
-  grid[playerStart.y][playerStart.x] = ".";
-  grid[Math.max(1, playerStart.y - 1)][playerStart.x] = ".";
-  grid[playerStart.y][Math.min(dimensions.width - 2, playerStart.x + 1)] = ".";
-  addMainRoutes(grid, playerStart);
+  carveMaze(grid, carveStart.x, carveStart.y, rng);
+  grid[carveStart.y][carveStart.x] = ".";
+  grid[Math.max(1, carveStart.y - 1)][carveStart.x] = ".";
+  grid[carveStart.y][Math.min(dimensions.width - 2, carveStart.x + 1)] = ".";
   addOpenPockets(grid, rng, Math.min(3, 1 + Math.floor(floor / 6)));
   addLoops(grid, rng, Math.min(6, 2 + Math.floor(floor / 3)));
+
+  const safeSpawn = pickSafeSpawn(grid, rng, carveStart);
+  const playerStart = {
+    x: safeSpawn.x,
+    y: safeSpawn.y,
+    facing: DIRECTION_ORDER[Math.floor(rng() * DIRECTION_ORDER.length)]
+  };
+  addMainRoutes(grid, playerStart);
 
   const mapRows = mapRowsFromGrid(grid);
 
@@ -489,8 +541,8 @@ function parseEnemies(source, mapRows, floor, fallbackEnemies) {
 
   const enemies = raw
     .map((enemy, index) => ({
-      id: typeof enemy.id === "string" && enemy.id.trim() ? enemy.id.trim() : `imp-${floor}-${index + 1}`,
-      type: "imp",
+      id: typeof enemy.id === "string" && enemy.id.trim() ? enemy.id.trim() : `enemy-${floor}-${index + 1}`,
+      type: "enemy",
       x: clampNumber(enemy.x, 1, 1, mapRows[0].length - 2),
       y: clampNumber(enemy.y, 1, 1, mapRows.length - 2),
       hp: clampNumber(enemy.hp, 1, 1, 9)
@@ -511,12 +563,14 @@ function createDoomFloorState({
   lastLog = ""
 } = {}) {
   const layout = generateFloorLayout(floor, mapSeed);
+  const minimumAmmo = getEnemyHpTotal(layout.enemies);
+  const startingAmmo = Math.max(ammo, minimumAmmo);
 
   return {
     floor,
     score,
     health,
-    ammo,
+    ammo: startingAmmo,
     keys,
     turn,
     status: "playing",
@@ -618,7 +672,7 @@ function movePlayer(state, delta, fallbackLog) {
   const targetY = state.player.y + delta.y;
 
   if (!canPlayerMoveTo(state, targetX, targetY)) {
-    state.lastLog = `${fallbackLog} A wall or monster blocks the way.`;
+    state.lastLog = `${fallbackLog} A wall or enemy blocks the way.`;
     return;
   }
 
@@ -648,6 +702,29 @@ function traceShot(state) {
   }
 
   return null;
+}
+
+function canPlayerSeeEnemy(state, enemy, maxDepth = 5) {
+  if (!enemy) {
+    return false;
+  }
+
+  const delta = getForwardDelta(state.player.facing);
+  let x = state.player.x + delta.x;
+  let y = state.player.y + delta.y;
+
+  for (let depth = 1; depth <= maxDepth; depth += 1) {
+    if (isWallAt(state.mapRows, x, y)) {
+      return false;
+    }
+    if (x === enemy.x && y === enemy.y) {
+      return true;
+    }
+    x += delta.x;
+    y += delta.y;
+  }
+
+  return false;
 }
 
 function chooseEnemyMove(enemy, state, occupied) {
@@ -690,6 +767,33 @@ function chooseEnemyMove(enemy, state, occupied) {
   return null;
 }
 
+function chooseEnemyWanderMove(enemy, state, occupied, rng) {
+  const deltas = shuffleInPlace([
+    { x: 1, y: 0 },
+    { x: -1, y: 0 },
+    { x: 0, y: 1 },
+    { x: 0, y: -1 }
+  ], rng);
+
+  for (let attempt = 0; attempt < deltas.length; attempt += 1) {
+    const delta = deltas[attempt];
+    const targetX = enemy.x + delta.x;
+    const targetY = enemy.y + delta.y;
+    const targetKey = pointKey(targetX, targetY);
+
+    if (isWallAt(state.mapRows, targetX, targetY) || occupied.has(targetKey)) {
+      continue;
+    }
+    if (targetX === state.player.x && targetY === state.player.y) {
+      continue;
+    }
+
+    return { x: targetX, y: targetY };
+  }
+
+  return null;
+}
+
 function advanceEnemies(state) {
   let damage = 0;
   let movers = 0;
@@ -706,17 +810,35 @@ function advanceEnemies(state) {
 
     const distance = Math.abs(enemy.x - state.player.x) + Math.abs(enemy.y - state.player.y);
     if (distance === 1) {
-      damage += 10 + (enemy.hp * 2);
+      damage += 7 + (enemy.hp * 2);
       continue;
     }
 
     occupied.delete(pointKey(enemy.x, enemy.y));
-    const nextPosition = chooseEnemyMove(enemy, state, occupied);
-    if (nextPosition) {
-      enemy.x = nextPosition.x;
-      enemy.y = nextPosition.y;
-      movers += 1;
+    const rng = createSeededRng(mixSeed("enemy-wander", state.mapSeed, state.turn, enemy.id));
+    const canSee = canPlayerSeeEnemy(state, enemy);
+    const shouldWander = !canSee && rng() < 0.75;
+
+    if (canSee) {
+      const nextPosition = chooseEnemyMove(enemy, state, occupied);
+      if (nextPosition) {
+        enemy.x = nextPosition.x;
+        enemy.y = nextPosition.y;
+        movers += 1;
+      }
+    } else if (shouldWander) {
+      const wanderSteps = 1 + Math.floor(rng() * 2);
+      for (let step = 0; step < wanderSteps; step += 1) {
+        const nextPosition = chooseEnemyWanderMove(enemy, state, occupied, rng);
+        if (!nextPosition) {
+          break;
+        }
+        enemy.x = nextPosition.x;
+        enemy.y = nextPosition.y;
+        movers += 1;
+      }
     }
+
     occupied.add(pointKey(enemy.x, enemy.y));
   }
 
@@ -742,8 +864,8 @@ function advanceFloor(state) {
   return createDoomFloorState({
     floor: nextFloor,
     score: state.score + 250,
-    health: Math.min(100, state.health + 15),
-    ammo: Math.min(99, state.ammo + 4),
+    health: Math.min(100, state.health + 12),
+    ammo: Math.min(99, state.ammo + 6),
     keys: state.keys,
     turn: state.turn,
     mapSeed: nextSeed,
@@ -813,7 +935,7 @@ function applyDoomAction(currentState, route) {
             x: shot.enemy.x,
             y: shot.enemy.y
           });
-          state.lastLog = "You blast an imp.";
+          state.lastLog = "You blast an enemy.";
         } else {
           state.score += 35;
           state.viewEvent = createViewEvent("shoot", {
@@ -821,7 +943,7 @@ function applyDoomAction(currentState, route) {
             x: shot.enemy.x,
             y: shot.enemy.y
           });
-          state.lastLog = "The imp staggers.";
+          state.lastLog = "The enemy staggers.";
         }
       } else {
         state.viewEvent = createViewEvent("shoot");
@@ -846,7 +968,7 @@ function applyDoomAction(currentState, route) {
       damage: enemyTurn.damage
     });
     state.lastLog = enemyTurn.damage > 0
-      ? `Imps tear you apart for ${enemyTurn.damage}. Press any button to restart.`
+      ? `Enemies tear you apart for ${enemyTurn.damage}. Press any button to restart.`
       : "You collapse in the dark. Press any button to restart.";
     return state;
   }
@@ -859,7 +981,7 @@ function applyDoomAction(currentState, route) {
     state.overlayEvent = createOverlayEvent("player-hurt", {
       damage: enemyTurn.damage
     });
-    state.lastLog = `${state.lastLog} Imps hit for ${enemyTurn.damage}.`;
+    state.lastLog = `${state.lastLog} Enemies hit for ${enemyTurn.damage}.`;
   } else if (enemyTurn.movers > 0) {
     state.lastLog = `${state.lastLog} Shapes rush through the maze.`;
   }
