@@ -291,38 +291,8 @@ function renderViewEvent(state, frame) {
       heightScale: 1.18
     });
     if (bounds) {
-      const splashId = `death-splash-${escapeXml(state.viewEvent.enemyId || `${state.viewEvent.x}-${state.viewEvent.y}`)}`;
-      const splashX = Math.max(VIEWPORT_BOX.x, bounds.x - Math.floor(bounds.width * 0.65));
-      const splashY = Math.max(VIEWPORT_BOX.y, bounds.y - Math.floor(bounds.height * 0.28));
-      const splashWidth = Math.min(
-        VIEWPORT_BOX.x + VIEWPORT_BOX.w - splashX,
-        Math.floor(bounds.width * 2.3)
-      );
-      const splashHeight = Math.min(
-        VIEWPORT_BOX.y + VIEWPORT_BOX.h - splashY,
-        Math.floor(bounds.height * 1.35)
-      );
-      const centerX = bounds.x + Math.floor(bounds.width / 2);
-      const centerY = bounds.y + Math.floor(bounds.height * 0.42);
-      const deathAnimDelay = "0.78s";
-
       return `
-      <defs>
-        <radialGradient id="${splashId}-gradient" cx="50%" cy="45%" r="62%">
-          <stop offset="0%" stop-color="#7f1d1d" stop-opacity="0.92" />
-          <stop offset="55%" stop-color="#991b1b" stop-opacity="0.52" />
-          <stop offset="100%" stop-color="#3f0a0a" stop-opacity="0" />
-        </radialGradient>
-      </defs>
-      <image href="${escapeXml(enemyDeathUri)}" x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}" preserveAspectRatio="xMidYMid meet" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />
-      <g opacity="0">
-        <animate attributeName="opacity" begin="${deathAnimDelay}" values="0;0.72;0.6" dur="420ms" fill="freeze" />
-        <ellipse cx="${centerX}" cy="${centerY}" rx="${Math.floor(splashWidth * 0.28)}" ry="${Math.floor(splashHeight * 0.34)}" fill="url(#${splashId}-gradient)" />
-        <ellipse cx="${centerX - Math.floor(bounds.width * 0.34)}" cy="${centerY + Math.floor(bounds.height * 0.06)}" rx="${Math.floor(splashWidth * 0.24)}" ry="${Math.floor(splashHeight * 0.26)}" fill="url(#${splashId}-gradient)" />
-        <ellipse cx="${centerX + Math.floor(bounds.width * 0.3)}" cy="${centerY - Math.floor(bounds.height * 0.02)}" rx="${Math.floor(splashWidth * 0.22)}" ry="${Math.floor(splashHeight * 0.24)}" fill="url(#${splashId}-gradient)" />
-        <ellipse cx="${centerX - Math.floor(bounds.width * 0.12)}" cy="${centerY - Math.floor(bounds.height * 0.16)}" rx="${Math.floor(splashWidth * 0.18)}" ry="${Math.floor(splashHeight * 0.16)}" fill="url(#${splashId}-gradient)" />
-        <rect x="${splashX}" y="${splashY}" width="${splashWidth}" height="${splashHeight}" fill="#b91c1c" opacity="0.08" />
-      </g>`;
+      <image href="${escapeXml(enemyDeathUri)}" x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}" preserveAspectRatio="xMidYMid meet" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />`;
     }
   }
 
@@ -336,6 +306,21 @@ function withPlayer(state, playerOverride) {
       ...state.player,
       ...playerOverride
     }
+  };
+}
+
+function withSceneState(state, { playerOverride = null, enemiesOverride = null } = {}) {
+  return {
+    ...state,
+    player: playerOverride
+      ? {
+        ...state.player,
+        ...playerOverride
+      }
+      : state.player,
+    enemies: Array.isArray(enemiesOverride)
+      ? enemiesOverride.map((enemy) => ({ ...enemy }))
+      : state.enemies
   };
 }
 
@@ -475,7 +460,12 @@ function renderViewSvg(rawState) {
   const shouldAnimate = Boolean(state.lastAction);
   const animationBegin = "0.5s";
   const animationMs = 260;
+  const previousState = shouldAnimate ? withSceneState(state, {
+    playerOverride: state.lastPlayer,
+    enemiesOverride: state.lastEnemies
+  }) : null;
   const currentFrame = createRaycastFrame(state);
+  const previousFrame = previousState ? createRaycastFrame(previousState) : null;
 
   const hpColor = state.health > 50 ? "#86efac" : state.health > 20 ? "#fde68a" : "#fca5a5";
   const mapWidth = state.mapRows[0].length;
@@ -506,6 +496,12 @@ function renderViewSvg(rawState) {
   <rect width="720" height="420" fill="#090607" />
   <g>
     <rect x="${VIEWPORT_BOX.x}" y="${VIEWPORT_BOX.y}" width="${VIEWPORT_BOX.w}" height="${VIEWPORT_BOX.h}" fill="#120909" />
+      ${shouldAnimate && previousFrame ? `
+      <g opacity="1">
+        <animate attributeName="opacity" begin="${animationBegin}" from="1" to="0" dur="${animationMs}ms" fill="freeze" />
+        ${previousFrame.markup}
+      </g>
+      ` : ""}
       <g opacity="${shouldAnimate ? "0" : "1"}">
         ${shouldAnimate
           ? `<animate attributeName="opacity" begin="${animationBegin}" from="0" to="1" dur="${animationMs}ms" fill="freeze" />`

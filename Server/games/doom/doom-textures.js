@@ -123,9 +123,9 @@ function getSurfaceTextureUri(state, surfaceType, variantKey) {
 
 function getEnemyTextureUri(state, enemy) {
   const variantKey = `${state.mapSeed}:${enemy ? enemy.id : "enemy"}`;
-  const hp = Math.max(1, Math.floor(Number(enemy && enemy.hp) || 1));
+  const artTier = Math.max(1, Math.floor(Number(enemy && (enemy.maxHp || enemy.hp)) || 1));
 
-  for (let tier = hp; tier >= 1; tier -= 1) {
+  for (let tier = artTier; tier >= 1; tier -= 1) {
     const tierCandidates = getManualTextureCandidates("characters", [
       `enemy-${tier}`,
       `enemy_${tier}`,

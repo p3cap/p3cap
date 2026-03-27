@@ -451,13 +451,14 @@ function createDistanceMap(mapRows, start) {
   return distances;
 }
 
-function createEnemy({ id, x, y, hp = 1 }) {
+function createEnemy({ id, x, y, hp = 1, maxHp = hp }) {
   return {
     id,
     type: "enemy",
     x,
     y,
-    hp
+    hp,
+    maxHp: Math.max(1, maxHp)
   };
 }
 
@@ -498,7 +499,8 @@ function createEnemiesForFloor(mapRows, start, floor, mapSeed) {
       id: `enemy-${floor}-${enemies.length + 1}`,
       x: cell.x,
       y: cell.y,
-      hp
+      hp,
+      maxHp: hp
     }));
 
     if (enemies.length >= count) {
@@ -598,7 +600,8 @@ function parseEnemies(source, mapRows, floor, fallbackEnemies) {
       type: "enemy",
       x: clampNumber(enemy.x, 1, 1, mapRows[0].length - 2),
       y: clampNumber(enemy.y, 1, 1, mapRows.length - 2),
-      hp: clampNumber(enemy.hp, 1, 1, 9)
+      hp: clampNumber(enemy.hp, 1, 1, 9),
+      maxHp: clampNumber(enemy.maxHp, clampNumber(enemy.hp, 1, 1, 9), 1, 9)
     }))
     .filter((enemy) => !isWallAt(mapRows, enemy.x, enemy.y));
 
