@@ -294,7 +294,7 @@ function getDarknessOpacity(depth) {
   return Math.min(0.55, 0.12 + (depth * 0.08));
 }
 
-function renderSideEnemySprite(state, enemy, depth, direction) {
+function renderSideEnemySprite(state, enemy, depth, direction, clipId, clipPoints) {
   const sprite = getEnemySpriteBounds(depth);
   if (!sprite || !enemy) {
     return "";
@@ -316,7 +316,12 @@ function renderSideEnemySprite(state, enemy, depth, direction) {
   return `
   <g opacity="0.9">
     <ellipse cx="${cx}" cy="${sprite.baseY - 4}" rx="${Math.floor(w * 0.33)}" ry="${Math.max(3, Math.floor(h * 0.08))}" fill="#000000" opacity="0.35" />
-    <image href="${escapeXml(textureUri)}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="xMidYMax meet" image-rendering="pixelated" />
+    <defs>
+      <clipPath id="${clipId}">
+        <polygon points="${clipPoints}" />
+      </clipPath>
+    </defs>
+    <image href="${escapeXml(textureUri)}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="xMidYMax meet" image-rendering="pixelated" clip-path="url(#${clipId})" />
   </g>`;
 }
 
@@ -346,31 +351,33 @@ function buildViewportScene(state) {
     const ceilingPoints = `${outer.x},${outer.y} ${outer.x + outer.w},${outer.y} ${inner.x + inner.w},${inner.y} ${inner.x},${inner.y}`;
     const floorPoints = `${outer.x},${outer.y + outer.h} ${outer.x + outer.w},${outer.y + outer.h} ${inner.x + inner.w},${inner.y + inner.h} ${inner.x},${inner.y + inner.h}`;
 
-    corridorLayers.push(renderTexturedPolygon(ceilingPoints, getSurfaceTextureUri(state, "ceiling", `${center.x}:${center.y}:ceiling:${depth}`)));
-    corridorLayers.push(`<polygon points="${ceilingPoints}" fill="none" stroke="#100908" stroke-width="1" opacity="0.45" />`);
-    corridorLayers.push(renderTexturedPolygon(floorPoints, getSurfaceTextureUri(state, "floor", `${center.x}:${center.y}:floor:${depth}`)));
+      corridorLayers.push(renderTexturedPolygon(ceilingPoints, getSurfaceTextureUri(state, "ceiling", `${center.x}:${center.y}:ceiling:${depth}`)));
+      corridorLayers.push(`<polygon points="${ceilingPoints}" fill="none" stroke="#100908" stroke-width="1" opacity="0.45" />`);
+      corridorLayers.push(renderTexturedPolygon(floorPoints, getSurfaceTextureUri(state, "floor", `${center.x}:${center.y}:floor:${depth}`)));
 
-    if (left.wall) {
-      corridorLayers.push(renderTexturedPolygon(leftPoints, getSurfaceTextureUri(state, "wall", `${left.x}:${left.y}`)));
-      corridorLayers.push(`<polygon points="${leftPoints}" fill="none" stroke="#23120b" stroke-width="2" />`);
-    } else {
-      corridorLayers.push(`<polygon points="${leftPoints}" fill="#0c0707" />`);
-      corridorLayers.push(`<polygon points="${leftPoints}" fill="#000000" opacity="${getDarknessOpacity(depth)}" />`);
-      if (left.enemy) {
-        sideEnemies.push(renderSideEnemySprite(state, left.enemy, depth, -1));
+      if (left.wall) {
+        corridorLayers.push(renderTexturedPolygon(leftPoints, getSurfaceTextureUri(state, "wall", `${left.x}:${left.y}`)));
+        corridorLayers.push(`<polygon points="${leftPoints}" fill="none" stroke="#23120b" stroke-width="2" />`);
+      } else {
+        corridorLayers.push(renderTexturedPolygon(leftPoints, getSurfaceTextureUri(state, "wall", `${left.x}:${left.y}:open`)));
+        corridorLayers.push(`<polygon points="${leftPoints}" fill="#000000" opacity="${getDarknessOpacity(depth)}" />`);
+        if (left.enemy) {
+          const clipId = `clip-left-${depth}-${left.enemy.id}`;
+          sideEnemies.push(renderSideEnemySprite(state, left.enemy, depth, -1, clipId, leftPoints));
+        }
       }
-    }
 
-    if (right.wall) {
-      corridorLayers.push(renderTexturedPolygon(rightPoints, getSurfaceTextureUri(state, "wall", `${right.x}:${right.y}`)));
-      corridorLayers.push(`<polygon points="${rightPoints}" fill="none" stroke="#23120b" stroke-width="2" />`);
-    } else {
-      corridorLayers.push(`<polygon points="${rightPoints}" fill="#0c0707" />`);
-      corridorLayers.push(`<polygon points="${rightPoints}" fill="#000000" opacity="${getDarknessOpacity(depth)}" />`);
-      if (right.enemy) {
-        sideEnemies.push(renderSideEnemySprite(state, right.enemy, depth, 1));
+      if (right.wall) {
+        corridorLayers.push(renderTexturedPolygon(rightPoints, getSurfaceTextureUri(state, "wall", `${right.x}:${right.y}`)));
+        corridorLayers.push(`<polygon points="${rightPoints}" fill="none" stroke="#23120b" stroke-width="2" />`);
+      } else {
+        corridorLayers.push(renderTexturedPolygon(rightPoints, getSurfaceTextureUri(state, "wall", `${right.x}:${right.y}:open`)));
+        corridorLayers.push(`<polygon points="${rightPoints}" fill="#000000" opacity="${getDarknessOpacity(depth)}" />`);
+        if (right.enemy) {
+          const clipId = `clip-right-${depth}-${right.enemy.id}`;
+          sideEnemies.push(renderSideEnemySprite(state, right.enemy, depth, 1, clipId, rightPoints));
+        }
       }
-    }
 
     if (!enemyDepth && center.enemy && !center.wall) {
       enemyDepth = depth;
