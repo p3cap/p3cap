@@ -273,6 +273,28 @@ function getSurfaceTextureUri(state, surfaceType, variantKey) {
   );
 }
 
+function getTextureSymbolId(textureUri) {
+  return `doom-texture-${hashString(String(textureUri || ""))}`;
+}
+
+function renderTextureSymbolDefs(textureUris) {
+  const uniqueTextureUris = Array.from(new Set(
+    Array.isArray(textureUris)
+      ? textureUris.filter(Boolean)
+      : Array.from(textureUris || []).filter(Boolean)
+  ));
+
+  if (uniqueTextureUris.length === 0) {
+    return "";
+  }
+
+  return `<defs>
+${uniqueTextureUris.map((textureUri) => `<symbol id="${getTextureSymbolId(textureUri)}" viewBox="0 0 ${TEXTURE_VIRTUAL_SIZE} ${TEXTURE_VIRTUAL_SIZE}">
+  <image href="${escapeXml(textureUri)}" x="0" y="0" width="${TEXTURE_VIRTUAL_SIZE}" height="${TEXTURE_VIRTUAL_SIZE}" preserveAspectRatio="none" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />
+</symbol>`).join("\n")}
+</defs>`;
+}
+
 function getEnemyTextureUri(state, enemy) {
   const variantKey = `${state.mapSeed}:${enemy ? enemy.id : "enemy"}`;
   const artTier = Math.max(1, Math.floor(Number(enemy && (enemy.maxHp || enemy.hp)) || 1));
@@ -364,6 +386,30 @@ function renderTexturedRect(x, y, width, height, textureUri) {
   return `<image href="${escapeXml(textureUri)}" x="${x}" y="${y}" width="${width}" height="${height}" preserveAspectRatio="none" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />`;
 }
 
+function renderCroppedTextureRectById(
+  x,
+  y,
+  width,
+  height,
+  textureId,
+  viewBoxX = 0,
+  viewBoxY = 0,
+  viewBoxWidth = TEXTURE_VIRTUAL_SIZE,
+  viewBoxHeight = TEXTURE_VIRTUAL_SIZE,
+  opacity = 1
+) {
+  if (!textureId || width <= 0 || height <= 0 || viewBoxWidth <= 0 || viewBoxHeight <= 0) {
+    return "";
+  }
+
+  const normalizedOpacity = Math.max(0, Math.min(1, Number(opacity) || 0));
+  const opacityAttribute = normalizedOpacity >= 0.999
+    ? ""
+    : ` opacity="${normalizedOpacity.toFixed(3)}"`;
+
+  return `<svg x="${x}" y="${y}" width="${width}" height="${height}" viewBox="${viewBoxX} ${viewBoxY} ${viewBoxWidth} ${viewBoxHeight}" preserveAspectRatio="none" overflow="hidden"${opacityAttribute}><use href="#${textureId}" x="0" y="0" width="${TEXTURE_VIRTUAL_SIZE}" height="${TEXTURE_VIRTUAL_SIZE}" /></svg>`;
+}
+
 function renderCroppedTextureRect(
   x,
   y,
@@ -395,7 +441,10 @@ module.exports = {
   getEffectTextureUri,
   getEnemyTextureUri,
   getSurfaceTextureUri,
+  getTextureSymbolId,
   renderEmbeddedFontStyle,
+  renderTextureSymbolDefs,
+  renderCroppedTextureRectById,
   renderCroppedTextureRect,
   renderTexturedPolygon,
   renderTexturedRect,

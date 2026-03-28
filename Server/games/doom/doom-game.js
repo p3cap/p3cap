@@ -19,6 +19,7 @@ const {
   getEffectTextureUri,
   getSurfaceTextureUri,
   renderEmbeddedFontStyle,
+  renderTextureSymbolDefs,
   renderTexturedPolygon,
   renderTexturedRect
 } = require("./doom-textures");
@@ -39,6 +40,10 @@ const RADAR_AREA = { w: 122, h: 88, inset: 10 };
 const GUN_SPRITE_BOX = { x: 334, y: 234, w: 152, h: 118 };
 const VIEWPORT_CENTER = { x: 360, y: 180 };
 const HUD_TEXT_CLASS = "doom-ui-text outlined";
+const FRAME_FADE_DURATION_MS = 140;
+const GUN_EVENT_BEGIN = "0.14s";
+const ENEMY_REACTION_BEGIN = "0.32s";
+const PLAYER_HURT_BEGIN = "0.86s";
 
 const slug = "doom";
 
@@ -179,15 +184,23 @@ function renderGunSprite(state) {
   const firingTextureUri = isFiring
     ? getEffectTextureUri("gunShot", `${state.floor}:${state.turn}:${state.ammo}`)
     : "";
-  const textureUri = firingTextureUri || getSurfaceTextureUri(state, "gun", `${state.floor}:${state.ammo}:${state.turn}`);
-  if (!textureUri) {
+  const idleTextureUri = getSurfaceTextureUri(state, "gun", `${state.floor}:${state.ammo}:${state.turn}`);
+  if (!idleTextureUri && !firingTextureUri) {
     return "";
   }
 
   return `
     <g>
       <ellipse cx="410" cy="344" rx="58" ry="11" fill="#000000" opacity="0.24" />
-      ${renderTexturedRect(GUN_SPRITE_BOX.x, GUN_SPRITE_BOX.y, GUN_SPRITE_BOX.w, GUN_SPRITE_BOX.h, textureUri)}
+      ${idleTextureUri
+        ? renderTexturedRect(GUN_SPRITE_BOX.x, GUN_SPRITE_BOX.y, GUN_SPRITE_BOX.w, GUN_SPRITE_BOX.h, idleTextureUri)
+        : ""}
+      ${firingTextureUri
+        ? `<g opacity="0">
+          <set attributeName="opacity" to="1" begin="${GUN_EVENT_BEGIN}" fill="freeze" />
+          ${renderTexturedRect(GUN_SPRITE_BOX.x, GUN_SPRITE_BOX.y, GUN_SPRITE_BOX.w, GUN_SPRITE_BOX.h, firingTextureUri)}
+        </g>`
+        : ""}
     </g>`;
 }
 
@@ -275,8 +288,8 @@ function renderViewEvent(state, frame) {
   const hurtBounds = state.viewEvent.type === "shoot" && frame && state.viewEvent.x >= 0 && state.viewEvent.y >= 0
     ? projectBillboardBounds(
       frame,
-      hurtEnemy ? hurtEnemy.x : state.viewEvent.x,
-      hurtEnemy ? hurtEnemy.y : state.viewEvent.y,
+      state.viewEvent.x,
+      state.viewEvent.y,
       { widthScale: 1.06, heightScale: 1.06 }
     )
     : null;
@@ -291,7 +304,7 @@ function renderViewEvent(state, frame) {
         </filter>
       </defs>
       <image href="${escapeXml(hurtTextureUri)}" x="${hurtBounds.x}" y="${hurtBounds.y}" width="${hurtBounds.width}" height="${hurtBounds.height}" preserveAspectRatio="xMidYMid meet" filter="url(#${hurtFilterId})" opacity="0">
-        <animate attributeName="opacity" begin="0s" values="0;0.58;0" dur="220ms" fill="freeze" />
+        <animate attributeName="opacity" begin="${ENEMY_REACTION_BEGIN}" values="0;0.58;0" dur="220ms" fill="freeze" />
       </image>`;
   }
 
@@ -302,7 +315,10 @@ function renderViewEvent(state, frame) {
     });
     if (bounds) {
       return `
-      <image href="${escapeXml(enemyDeathUri)}" x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}" preserveAspectRatio="xMidYMid meet" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />`;
+      <g opacity="0">
+        <set attributeName="opacity" to="1" begin="${ENEMY_REACTION_BEGIN}" fill="freeze" />
+        <image href="${escapeXml(enemyDeathUri)}" x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}" preserveAspectRatio="xMidYMid meet" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />
+      </g>`;
     }
   }
 
@@ -455,7 +471,10 @@ function renderOverlayEvent(state) {
     return "";
   }
 
-  return `<image href="${escapeXml(damageFrameUri)}" x="0" y="0" width="720" height="420" preserveAspectRatio="none" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />`;
+  return `<g opacity="0">
+    <set attributeName="opacity" to="1" begin="${PLAYER_HURT_BEGIN}" fill="freeze" />
+    <image href="${escapeXml(damageFrameUri)}" x="0" y="0" width="720" height="420" preserveAspectRatio="none" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />
+  </g>`;
 }
 
 function renderViewSvg(rawState) {
@@ -469,13 +488,17 @@ function renderViewSvg(rawState) {
 
   const shouldAnimate = Boolean(state.lastAction);
   const animationBegin = "0s";
-  const animationMs = 260;
+  const animationMs = FRAME_FADE_DURATION_MS;
   const previousState = shouldAnimate ? withSceneState(state, {
     playerOverride: state.lastPlayer,
     enemiesOverride: state.lastEnemies
   }) : null;
   const currentFrame = createRaycastFrame(state);
   const previousFrame = previousState ? createRaycastFrame(previousState) : null;
+  const frameTextureDefs = renderTextureSymbolDefs([
+    ...Array.from(previousFrame ? previousFrame.textureUris : []),
+    ...Array.from(currentFrame.textureUris || [])
+  ]);
 
   const mapWidth = state.mapRows[0].length;
   const mapHeight = state.mapRows.length;
@@ -503,6 +526,7 @@ function renderViewSvg(rawState) {
 return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-label="Doom-style game viewport">
   ${renderEmbeddedFontStyle()}
+  ${frameTextureDefs}
   <rect width="720" height="420" fill="#090607" />
   <g>
     <rect x="${VIEWPORT_BOX.x}" y="${VIEWPORT_BOX.y}" width="${VIEWPORT_BOX.w}" height="${VIEWPORT_BOX.h}" fill="#120909" />
@@ -512,10 +536,7 @@ return `<?xml version="1.0" encoding="UTF-8"?>
         ${previousFrame.sceneMarkup}
       </g>
       ` : ""}
-      <g opacity="${shouldAnimate ? "0" : "1"}">
-        ${shouldAnimate
-          ? `<animate attributeName="opacity" begin="${animationBegin}" from="0" to="1" dur="${animationMs}ms" fill="freeze" />`
-          : ""}
+      <g opacity="1">
         ${currentFrame.sceneMarkup}
       </g>
       ${currentFrame.enemyMarkup}

@@ -2,7 +2,8 @@ const { escapeXml, getForwardDelta } = require("./doom-core");
 const {
   getEnemyTextureUri,
   getSurfaceTextureUri,
-  renderCroppedTextureRect,
+  getTextureSymbolId,
+  renderCroppedTextureRectById,
   TEXTURE_VIRTUAL_SIZE
 } = require("./doom-textures");
 
@@ -18,10 +19,11 @@ const VIEWPORT_RENDER_BOX = {
 };
 
 const CAMERA_PLANE_SCALE = 0.66;
-const FLOOR_SAMPLE_WIDTH = 1;
-const FLOOR_SAMPLE_HEIGHT = 1;
+const FLOOR_SAMPLE_WIDTH = 2;
+const FLOOR_SAMPLE_HEIGHT = 2;
 const MAX_RENDER_DISTANCE = 24;
 const MIN_DISTANCE = 0.0001;
+const ENEMY_MOVE_BEGIN = "0.54s";
 
 function clamp(value, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, value));
@@ -256,12 +258,12 @@ function renderFloorAndCeiling(state, camera, textureLookup) {
       const ceilingTexture = textureLookup.surface("ceiling", cellX, cellY);
 
       if (floorTexture) {
-        pieces.push(renderCroppedTextureRect(
+        pieces.push(renderCroppedTextureRectById(
           screenX,
           floorY,
           screenWidth,
           sampleHeight,
-          floorTexture,
+          getTextureSymbolId(floorTexture),
           textureX,
           textureY,
           1,
@@ -271,12 +273,12 @@ function renderFloorAndCeiling(state, camera, textureLookup) {
       }
 
       if (ceilingTexture) {
-        pieces.push(renderCroppedTextureRect(
+        pieces.push(renderCroppedTextureRectById(
           screenX,
           Math.max(VIEWPORT_RENDER_BOX.y, ceilingY),
           screenWidth,
           sampleHeight,
-          ceilingTexture,
+          getTextureSymbolId(ceilingTexture),
           textureX,
           textureY,
           1,
@@ -302,7 +304,7 @@ function renderWalls(rays, textureLookup) {
       continue;
     }
 
-    pieces.push(renderCroppedTextureRect(
+    pieces.push(renderCroppedTextureRectById(
       VIEWPORT_RENDER_BOX.x + (ray.column * VIEWPORT_RENDER_BOX.pixelWidth),
       VIEWPORT_RENDER_BOX.y + (ray.drawStart * VIEWPORT_RENDER_BOX.pixelHeight),
       VIEWPORT_RENDER_BOX.pixelWidth,
@@ -310,7 +312,7 @@ function renderWalls(rays, textureLookup) {
         VIEWPORT_RENDER_BOX.pixelHeight,
         (ray.drawEnd - ray.drawStart + 1) * VIEWPORT_RENDER_BOX.pixelHeight
       ),
-      textureUri,
+      getTextureSymbolId(textureUri),
       ray.textureX,
       0,
       1,
@@ -431,9 +433,7 @@ function renderEnemies(state, frame, textureLookup) {
       height: currentBounds.height
     })));
     const clipBounds = getBoundsUnion(visibleBounds, hasMovementAnimation ? previousBounds : null) || currentBounds;
-    const movementBegin = state.viewEvent && state.viewEvent.type === "shoot" && state.viewEvent.enemyId === entry.enemy.id
-      ? "0.24s"
-      : "0s";
+    const movementBegin = ENEMY_MOVE_BEGIN;
     const movementDurationMs = 240;
     const movementMarkup = hasMovementAnimation
       ? `
@@ -468,11 +468,44 @@ function createRaycastFrame(state) {
   const textureLookup = createTextureLookup(state);
   const rays = [];
   const zBuffer = new Array(VIEWPORT_RENDER_BOX.internalWidth);
+  const textureUris = new Set();
 
   for (let column = 0; column < VIEWPORT_RENDER_BOX.internalWidth; column += 1) {
     const ray = castRay(state, camera, column);
     rays.push(ray);
     zBuffer[column] = ray.distance;
+    const wallTextureUri = textureLookup.surface("wall", ray.cellX, ray.cellY);
+    if (wallTextureUri) {
+      textureUris.add(wallTextureUri);
+    }
+  }
+
+  for (let row = Math.floor(VIEWPORT_RENDER_BOX.internalHeight / 2) + 1; row < VIEWPORT_RENDER_BOX.internalHeight; row += FLOOR_SAMPLE_HEIGHT) {
+    const rowDistance = (VIEWPORT_RENDER_BOX.internalHeight / 2) / Math.max(MIN_DISTANCE, row - (VIEWPORT_RENDER_BOX.internalHeight / 2));
+    const leftRayX = camera.dirX - camera.planeX;
+    const leftRayY = camera.dirY - camera.planeY;
+    const rightRayX = camera.dirX + camera.planeX;
+    const rightRayY = camera.dirY + camera.planeY;
+    const stepX = rowDistance * (rightRayX - leftRayX) / VIEWPORT_RENDER_BOX.internalWidth;
+    const stepY = rowDistance * (rightRayY - leftRayY) / VIEWPORT_RENDER_BOX.internalWidth;
+    let worldX = camera.posX + (rowDistance * leftRayX);
+    let worldY = camera.posY + (rowDistance * leftRayY);
+    for (let column = 0; column < VIEWPORT_RENDER_BOX.internalWidth; column += FLOOR_SAMPLE_WIDTH) {
+      const sampleWorldX = worldX + (stepX * 0.5);
+      const sampleWorldY = worldY + (stepY * 0.5);
+      const cellX = Math.floor(sampleWorldX);
+      const cellY = Math.floor(sampleWorldY);
+      const floorTextureUri = textureLookup.surface("floor", cellX, cellY);
+      const ceilingTextureUri = textureLookup.surface("ceiling", cellX, cellY);
+      if (floorTextureUri) {
+        textureUris.add(floorTextureUri);
+      }
+      if (ceilingTextureUri) {
+        textureUris.add(ceilingTextureUri);
+      }
+      worldX += stepX * FLOOR_SAMPLE_WIDTH;
+      worldY += stepY * FLOOR_SAMPLE_WIDTH;
+    }
   }
 
   const frame = {
@@ -487,6 +520,7 @@ ${renderWalls(rays, textureLookup)}`;
     ...frame,
     sceneMarkup,
     enemyMarkup,
+    textureUris,
     markup: `${sceneMarkup}
 ${enemyMarkup}`
   };
