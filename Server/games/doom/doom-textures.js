@@ -300,18 +300,18 @@ function getEnemyTextureUri(state, enemy) {
   const artTier = Math.max(1, Math.floor(Number(enemy && (enemy.maxHp || enemy.hp)) || 1));
 
   for (let tier = artTier; tier >= 1; tier -= 1) {
-    const tierCandidates = getManualTextureCandidates("characters", [
-      `imp-${tier}`,
-      `imp_${tier}`,
-      `enemy-${tier}`,
-      `enemy_${tier}`,
-      `enemy-imp-${tier}`,
-      `enemy_imp_${tier}`,
-      tier === 1 ? "enemy" : "",
-      tier === 1 ? "imp" : ""
-    ]);
-    if (tierCandidates.length > 0) {
-      return tierCandidates[hashString(`${variantKey}:${tier}`) % tierCandidates.length];
+    const prefixGroups = [
+      [`imp-${tier}`, `imp_${tier}`],
+      [`enemy-imp-${tier}`, `enemy_imp_${tier}`],
+      [`enemy-${tier}`, `enemy_${tier}`],
+      tier === 1 ? ["imp", "enemy"] : []
+    ];
+
+    for (const prefixes of prefixGroups) {
+      const tierCandidates = getManualTextureCandidates("characters", prefixes);
+      if (tierCandidates.length > 0) {
+        return tierCandidates[hashString(`${variantKey}:${tier}:${prefixes.join("|")}`) % tierCandidates.length];
+      }
     }
   }
 
