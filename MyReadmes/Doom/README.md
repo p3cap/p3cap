@@ -1,29 +1,29 @@
 <div align="center">
   <img src="https://p3cap.vercel.app/doom/global/images/view.svg" alt="Retro Doom-like game screen" width="9999" />
   <a href="https://p3cap.vercel.app/doom/global/turn-left?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-    <img src="https://p3cap.vercel.app/doom/global/images/button-turn-left.svg" alt="Turn left" width="132" />
+    <img src="https://p3cap.vercel.app/doom/global/images/button-turn-left.svg" alt="Turn left" width="132" height="132"/>
   </a>
   <a href="https://p3cap.vercel.app/doom/global/forward?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-    <img src="https://p3cap.vercel.app/doom/global/images/button-forward.svg" alt="Move forward" width="132" />
+    <img src="https://p3cap.vercel.app/doom/global/images/button-forward.svg" alt="Move forward" width="132" height="132"/>
   </a>
   <a href="https://p3cap.vercel.app/doom/global/turn-right?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-    <img src="https://p3cap.vercel.app/doom/global/images/button-turn-right.svg" alt="Turn right" width="132" />
+    <img src="https://p3cap.vercel.app/doom/global/images/button-turn-right.svg" alt="Turn right" width="132" height="132"/>
   </a>
   <a href="https://p3cap.vercel.app/doom/global/shoot?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-    <img src="https://p3cap.vercel.app/doom/global/images/button-shoot.svg" alt="Shoot" width="132" />
+    <img src="https://p3cap.vercel.app/doom/global/images/button-shoot.svg" alt="Shoot" width="132" height="132"/>
   </a>
   <br />
   <a href="https://p3cap.vercel.app/doom/global/strafe-left?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-    <img src="https://p3cap.vercel.app/doom/global/images/button-strafe-left.svg" alt="Step left" width="132" />
+    <img src="https://p3cap.vercel.app/doom/global/images/button-strafe-left.svg" alt="Step left" width="132" height="132" />
   </a>
   <a href="https://p3cap.vercel.app/doom/global/backward?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-    <img src="https://p3cap.vercel.app/doom/global/images/button-backward.svg" alt="Move backward" width="132" />
+    <img src="https://p3cap.vercel.app/doom/global/images/button-backward.svg" alt="Move backward" width="132" height="132" />
   </a>
   <a href="https://p3cap.vercel.app/doom/global/strafe-right?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-    <img src="https://p3cap.vercel.app/doom/global/images/button-strafe-right.svg" alt="Step right" width="132" />
+    <img src="https://p3cap.vercel.app/doom/global/images/button-strafe-right.svg" alt="Step right" width="132" height="132" />
   </a>
   <a href="https://p3cap.vercel.app/doom/global/wait?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
-    <img src="https://p3cap.vercel.app/doom/global/images/button-wait.svg" alt="Wait" width="132" />
+    <img src="https://p3cap.vercel.app/doom/global/images/button-wait.svg" alt="Wait" width="132" height="132" />
   </a>
 
 <h2>README-DOOM</h2>
