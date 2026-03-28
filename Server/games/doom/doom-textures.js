@@ -8,10 +8,14 @@ const DOOM_ASSET_DIRECTORIES = {
   characters: path.join(DOOM_TEXTURE_DIR, "characters"),
   ui: path.join(DOOM_TEXTURE_DIR, "ui")
 };
+const DOOM_FONT_PATH = path.join(DOOM_TEXTURE_DIR, "ui", "font", "DooM.ttf");
 const SUPPORTED_TEXTURE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"]);
 const MANUAL_TEXTURE_CACHE = new Map();
 const POINT_BOUNDS_CACHE = new Map();
 const TEXTURE_VIRTUAL_SIZE = 64;
+const UI_TEXT_COLOR = "#9f1f17";
+let embeddedFontDataUriCache = null;
+let mapThemeDirectoryCache = null;
 
 const SURFACE_TEXTURES = {
   wall: { directory: "map", prefixes: ["wall"] },
@@ -60,15 +64,128 @@ function getMimeTypeForTexture(fileName) {
   return "";
 }
 
-function getManualTextureCandidates(directoryKey, prefixes) {
+function getEmbeddedFontDataUri() {
+  if (embeddedFontDataUriCache !== null) {
+    return embeddedFontDataUriCache;
+  }
+
+  try {
+    if (fs.existsSync(DOOM_FONT_PATH)) {
+      embeddedFontDataUriCache = `data:font/ttf;base64,${fs.readFileSync(DOOM_FONT_PATH).toString("base64")}`;
+      return embeddedFontDataUriCache;
+    }
+  } catch (error) {
+    // Ignore font loading failures and fall back to default browser font rendering.
+  }
+
+  embeddedFontDataUriCache = "";
+  return embeddedFontDataUriCache;
+}
+
+function getMapThemeDirectories() {
+  if (mapThemeDirectoryCache) {
+    return mapThemeDirectoryCache;
+  }
+
+  try {
+    if (fs.existsSync(DOOM_ASSET_DIRECTORIES.map)) {
+      const themes = fs.readdirSync(DOOM_ASSET_DIRECTORIES.map, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && /^\d+[_-]/.test(entry.name))
+        .map((entry) => ({
+          name: entry.name,
+          path: path.join(DOOM_ASSET_DIRECTORIES.map, entry.name)
+        }))
+        .sort((left, right) => {
+          const leftIndex = Number((/^(\d+)/.exec(left.name) || [])[1]) || 0;
+          const rightIndex = Number((/^(\d+)/.exec(right.name) || [])[1]) || 0;
+          if (leftIndex !== rightIndex) {
+            return leftIndex - rightIndex;
+          }
+          return left.name.localeCompare(right.name);
+        });
+
+      if (themes.length > 0) {
+        mapThemeDirectoryCache = themes;
+        return mapThemeDirectoryCache;
+      }
+    }
+  } catch (error) {
+    // Ignore theme scan failures and use the flat map directory as a fallback.
+  }
+
+  mapThemeDirectoryCache = [{ name: "", path: DOOM_ASSET_DIRECTORIES.map }];
+  return mapThemeDirectoryCache;
+}
+
+function renderEmbeddedFontStyle() {
+  const fontUri = getEmbeddedFontDataUri();
+  if (!fontUri) {
+    return "";
+  }
+
+  return `<style><![CDATA[
+    @font-face {
+      font-family: "DoomUi";
+      src: url("${fontUri}") format("truetype");
+      font-weight: normal;
+      font-style: normal;
+    }
+    .doom-ui-text {
+      font-family: "DoomUi", monospace;
+      fill: ${UI_TEXT_COLOR};
+      letter-spacing: 0.4px;
+    }
+    .doom-ui-text.outlined {
+      paint-order: stroke fill;
+      stroke: rgba(22, 4, 4, 0.55);
+      stroke-width: 1.2px;
+      stroke-linejoin: round;
+    }
+  ]]></style>`;
+}
+
+function getAutoVersionLabel() {
+  const versionFiles = [
+    path.join(__dirname, "doom-core.js"),
+    path.join(__dirname, "doom-game.js"),
+    path.join(__dirname, "doom-raycaster.js"),
+    path.join(__dirname, "doom-textures.js"),
+    DOOM_FONT_PATH
+  ];
+
+  let latestModifiedAt = 0;
+  for (const filePath of versionFiles) {
+    try {
+      const stats = fs.statSync(filePath);
+      latestModifiedAt = Math.max(latestModifiedAt, stats.mtimeMs || 0);
+    } catch (error) {
+      // Skip missing files so the version can still be generated.
+    }
+  }
+
+  if (!latestModifiedAt) {
+    return "0.0.0";
+  }
+
+  const timestamp = new Date(latestModifiedAt);
+  const year = timestamp.getUTCFullYear();
+  const dayStart = Date.UTC(year, 0, 1);
+  const currentDay = Date.UTC(year, timestamp.getUTCMonth(), timestamp.getUTCDate());
+  const dayOfYear = Math.floor((currentDay - dayStart) / 86400000) + 1;
+  const minuteOfDay = (timestamp.getUTCHours() * 60) + timestamp.getUTCMinutes();
+
+  return `0.${dayOfYear}.${minuteOfDay}`;
+}
+
+function getManualTextureCandidates(directoryKeyOrPath, prefixes) {
   const prefixList = Array.isArray(prefixes) ? prefixes.filter(Boolean) : [prefixes].filter(Boolean);
-  const cacheKey = `${directoryKey}:${prefixList.join("|")}`;
+  const textureDirectory = DOOM_ASSET_DIRECTORIES[directoryKeyOrPath] || directoryKeyOrPath || DOOM_TEXTURE_DIR;
+  const cacheKey = `${textureDirectory}:${prefixList.join("|")}`;
   if (MANUAL_TEXTURE_CACHE.has(cacheKey)) {
     return MANUAL_TEXTURE_CACHE.get(cacheKey);
   }
 
   let candidates = [];
-  const textureDirectory = DOOM_ASSET_DIRECTORIES[directoryKey] || DOOM_TEXTURE_DIR;
 
   try {
     if (prefixList.length > 0 && fs.existsSync(textureDirectory)) {
@@ -99,8 +216,8 @@ function getManualTextureCandidates(directoryKey, prefixes) {
   return candidates;
 }
 
-function getTextureUri(directoryKey, prefixes, variantKey) {
-  const candidates = getManualTextureCandidates(directoryKey, prefixes);
+function getTextureUri(directoryKeyOrPath, prefixes, variantKey) {
+  const candidates = getManualTextureCandidates(directoryKeyOrPath, prefixes);
   if (candidates.length === 0) {
     return "";
   }
@@ -108,10 +225,45 @@ function getTextureUri(directoryKey, prefixes, variantKey) {
   return candidates[hashString(String(variantKey || "0")) % candidates.length];
 }
 
+function getMapSurfaceTextureUri(state, surfaceType, variantKey) {
+  const surface = SURFACE_TEXTURES[surfaceType];
+  if (!surface) {
+    return "";
+  }
+
+  const themeDirectories = getMapThemeDirectories();
+  const selectedThemeName = state && typeof state.textureTheme === "string" ? state.textureTheme.trim() : "";
+  const selectedIndex = Math.max(0, themeDirectories.findIndex((theme) => theme.name === selectedThemeName));
+  const orderedThemes = [];
+
+  if (themeDirectories[selectedIndex]) {
+    orderedThemes.push(themeDirectories[selectedIndex]);
+  }
+  for (let index = selectedIndex - 1; index >= 0; index -= 1) {
+    orderedThemes.push(themeDirectories[index]);
+  }
+  for (let index = selectedIndex + 1; index < themeDirectories.length; index += 1) {
+    orderedThemes.push(themeDirectories[index]);
+  }
+
+  for (const theme of orderedThemes) {
+    const textureUri = getTextureUri(theme.path, surface.prefixes, `${theme.name}:${variantKey}`);
+    if (textureUri) {
+      return textureUri;
+    }
+  }
+
+  return getTextureUri(surface.directory, surface.prefixes, variantKey);
+}
+
 function getSurfaceTextureUri(state, surfaceType, variantKey) {
   const surface = SURFACE_TEXTURES[surfaceType];
   if (!surface) {
     return "";
+  }
+
+  if (surface.directory === "map") {
+    return getMapSurfaceTextureUri(state, surfaceType, variantKey);
   }
 
   return getTextureUri(
@@ -237,12 +389,16 @@ function renderCroppedTextureRect(
 }
 
 module.exports = {
+  getAutoVersionLabel,
   getButtonTextureUri,
+  getEmbeddedFontDataUri,
   getEffectTextureUri,
   getEnemyTextureUri,
   getSurfaceTextureUri,
+  renderEmbeddedFontStyle,
   renderCroppedTextureRect,
   renderTexturedPolygon,
   renderTexturedRect,
-  TEXTURE_VIRTUAL_SIZE
+  TEXTURE_VIRTUAL_SIZE,
+  UI_TEXT_COLOR
 };

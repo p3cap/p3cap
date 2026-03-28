@@ -13,10 +13,12 @@ const {
   applyDoomAction
 } = require("./doom-core");
 const {
+  getAutoVersionLabel,
   getButtonTextureUri,
   getEnemyTextureUri,
   getEffectTextureUri,
   getSurfaceTextureUri,
+  renderEmbeddedFontStyle,
   renderTexturedPolygon,
   renderTexturedRect
 } = require("./doom-textures");
@@ -36,6 +38,7 @@ const HUD_BOX = { x: 10, y: 360, w: 700, h: 40 };
 const RADAR_AREA = { w: 122, h: 88, inset: 10 };
 const GUN_SPRITE_BOX = { x: 334, y: 234, w: 152, h: 118 };
 const VIEWPORT_CENTER = { x: 360, y: 180 };
+const HUD_TEXT_CLASS = "doom-ui-text outlined";
 
 const slug = "doom";
 
@@ -197,41 +200,46 @@ function renderViewportFrame() {
   return `<image href="${escapeXml(frameUri)}" x="0" y="0" width="720" height="420" preserveAspectRatio="none" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />`;
 }
 
-function renderBottomStats(state, hpColor) {
+function renderBottomStats(state) {
   const slots = [
-    { label: "HP", value: String(state.health), color: hpColor },
-    { label: "AMMO", value: String(state.ammo), color: "#bfdbfe" },
-    { label: "FLOOR", value: String(state.floor), color: "#fde68a" },
-    { label: "SCORE", value: String(state.score), color: "#86efac" }
+    { label: "HP", value: String(state.health) },
+    { label: "AMMO", value: String(state.ammo) },
+    { label: "FLOOR", value: String(state.floor) },
+    { label: "SCORE", value: String(state.score) }
   ];
   const slotWidth = HUD_BOX.w / slots.length;
 
   return slots.map((slot, index) => {
     const centerX = HUD_BOX.x + (slotWidth * index) + (slotWidth / 2);
-    return `<text x="${centerX}" y="386" text-anchor="middle" fill="${slot.color}" font-size="18" font-family="'Courier New', monospace">${escapeXml(slot.label)} ${escapeXml(slot.value)}</text>`;
+    return `<text x="${centerX}" y="386" text-anchor="middle" font-size="18" class="${HUD_TEXT_CLASS}">${escapeXml(slot.label)} ${escapeXml(slot.value)}</text>`;
   }).join("\n");
+}
+
+function renderVersionLabel(x = 700, y = 407, textAnchor = "end") {
+  return `<text x="${x}" y="${y}" text-anchor="${textAnchor}" font-size="11" class="${HUD_TEXT_CLASS}">${escapeXml(getAutoVersionLabel())}</text>`;
 }
 
 function renderDeathViewSvg(state) {
   const deathScreenUri = getEffectTextureUri("deathScreen");
   const bloodUri = getEffectTextureUri("playerDeath", `${state.floor}:${state.turn}`);
-  const hpColor = "#fca5a5";
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-label="Doom death screen">
+  ${renderEmbeddedFontStyle()}
   ${deathScreenUri
     ? `<image href="${escapeXml(deathScreenUri)}" x="0" y="0" width="720" height="420" preserveAspectRatio="none" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />`
     : ""}
   ${bloodUri
     ? `<image href="${escapeXml(bloodUri)}" x="210" y="224" width="300" height="118" preserveAspectRatio="none" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />`
     : ""}
-  <text x="360" y="160" text-anchor="middle" fill="#ffe4e6" font-size="40" font-family="'Courier New', monospace" opacity="0">You deid
+  <text x="360" y="160" text-anchor="middle" font-size="40" opacity="0" class="${HUD_TEXT_CLASS}">You deid
     <animate attributeName="opacity" values="0;0;1" dur="760ms" fill="freeze" />
   </text>
-  <text x="360" y="200" text-anchor="middle" fill="#fecdd3" font-size="17" font-family="'Courier New', monospace" opacity="0">press any button to start a new game
+  <text x="360" y="200" text-anchor="middle" font-size="17" opacity="0" class="${HUD_TEXT_CLASS}">press any button to start a new game
     <animate attributeName="opacity" values="0;0;1" dur="860ms" fill="freeze" />
   </text>
-  ${renderBottomStats({ ...state, health: 0, ammo: 0 }, hpColor)}
+  ${renderBottomStats({ ...state, health: 0, ammo: 0 })}
+  ${renderVersionLabel()}
 </svg>`;
 }
 
@@ -241,17 +249,19 @@ function renderFloorClearSvg(state) {
     ? state.pendingFloor.floor
     : state.floor + 1;
 
-  return `<?xml version="1.0" encoding="UTF-8"?>
+return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-label="Floor clear screen">
+  ${renderEmbeddedFontStyle()}
   ${panelUri
     ? `<image href="${escapeXml(panelUri)}" x="0" y="0" width="720" height="420" preserveAspectRatio="none" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />`
     : ""}
-  <text x="360" y="138" text-anchor="middle" fill="#fca5a5" font-size="24" font-family="'Courier New', monospace">FLOOR CLEARED</text>
-  <text x="360" y="186" text-anchor="middle" fill="#f8fafc" font-size="30" font-family="'Courier New', monospace">Congrats, you&apos;ve beaten floor ${escapeXml(String(state.floor))}</text>
-  <text x="360" y="226" text-anchor="middle" fill="#fde68a" font-size="18" font-family="'Courier New', monospace">score +250   health +15   ammo +4</text>
-  <text x="360" y="268" text-anchor="middle" fill="#e5e7eb" font-size="17" font-family="'Courier New', monospace">Press any button to continue to floor ${escapeXml(String(nextFloor))}</text>
-  <text x="360" y="290" text-anchor="middle" fill="#9ca3af" font-size="14" font-family="'Courier New', monospace">One more descent into the maze.</text>
-  ${renderBottomStats(state, "#86efac")}
+  <text x="360" y="138" text-anchor="middle" font-size="24" class="${HUD_TEXT_CLASS}">FLOOR CLEARED</text>
+  <text x="360" y="186" text-anchor="middle" font-size="30" class="${HUD_TEXT_CLASS}">Congrats, you&apos;ve beaten floor ${escapeXml(String(state.floor))}</text>
+  <text x="360" y="226" text-anchor="middle" font-size="18" class="${HUD_TEXT_CLASS}">score +250   health +15   ammo +4</text>
+  <text x="360" y="268" text-anchor="middle" font-size="17" class="${HUD_TEXT_CLASS}">Press any button to continue to floor ${escapeXml(String(nextFloor))}</text>
+  <text x="360" y="290" text-anchor="middle" font-size="14" class="${HUD_TEXT_CLASS}">One more descent into the maze.</text>
+  ${renderBottomStats(state)}
+  ${renderVersionLabel()}
 </svg>`;
 }
 
@@ -467,7 +477,6 @@ function renderViewSvg(rawState) {
   const currentFrame = createRaycastFrame(state);
   const previousFrame = previousState ? createRaycastFrame(previousState) : null;
 
-  const hpColor = state.health > 50 ? "#86efac" : state.health > 20 ? "#fde68a" : "#fca5a5";
   const mapWidth = state.mapRows[0].length;
   const mapHeight = state.mapRows.length;
   const radarCell = Math.max(4, Math.min(8, Math.floor((RADAR_AREA.w - 2) / mapWidth), Math.floor((RADAR_AREA.h - 2) / mapHeight)));
@@ -491,8 +500,9 @@ function renderViewSvg(rawState) {
     .map((enemy) => `<rect x="${radarMapX + (enemy.x * radarCell) + 1}" y="${radarMapY + (enemy.y * radarCell) + 1}" width="${Math.max(3, radarCell - 2)}" height="${Math.max(3, radarCell - 2)}" fill="#ef4444" />`)
     .join("");
 
-  return `<?xml version="1.0" encoding="UTF-8"?>
+return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-label="Doom-style game viewport">
+  ${renderEmbeddedFontStyle()}
   <rect width="720" height="420" fill="#090607" />
   <g>
     <rect x="${VIEWPORT_BOX.x}" y="${VIEWPORT_BOX.y}" width="${VIEWPORT_BOX.w}" height="${VIEWPORT_BOX.h}" fill="#120909" />
@@ -513,7 +523,8 @@ function renderViewSvg(rawState) {
       ${renderGunSprite(state)}
       ${renderOverlayEvent(state)}
       ${renderViewportFrame()}
-    ${renderBottomStats(state, hpColor)}
+    ${renderBottomStats(state)}
+    ${renderVersionLabel()}
     ${radarTiles}
     ${radarEnemies}
     <polygon points="${radarPlayerTriangle}" fill="#fde68a" />
@@ -525,24 +536,26 @@ function renderHudSvg(rawState) {
   const state = normalizeDoomState(rawState);
   const mapSize = `${state.mapRows[0].length}x${state.mapRows.length}`;
 
-  return `<?xml version="1.0" encoding="UTF-8"?>
+return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="120" viewBox="0 0 720 120" role="img" aria-label="Doom-style HUD">
+  ${renderEmbeddedFontStyle()}
   <rect width="720" height="120" fill="#120906" />
   <rect x="8" y="8" width="704" height="104" fill="#2a140d" stroke="#6b2f1b" stroke-width="4" />
-  <g font-family="'Courier New', monospace">
-    <text x="28" y="38" fill="#fca5a5" font-size="18">HEALTH</text>
-    <text x="28" y="82" fill="#fde68a" font-size="32">${escapeXml(String(state.health))}</text>
-    <text x="168" y="38" fill="#93c5fd" font-size="18">AMMO</text>
-    <text x="168" y="82" fill="#bfdbfe" font-size="32">${escapeXml(String(state.ammo))}</text>
-    <text x="288" y="38" fill="#86efac" font-size="18">SCORE</text>
-    <text x="288" y="82" fill="#dcfce7" font-size="32">${escapeXml(String(state.score))}</text>
-    <text x="438" y="38" fill="#fcd34d" font-size="18">FLOOR</text>
-    <text x="438" y="82" fill="#fef3c7" font-size="32">${escapeXml(String(state.floor))}</text>
-    <text x="534" y="38" fill="#e5e7eb" font-size="18">ENEMIES</text>
-    <text x="534" y="82" fill="#f8fafc" font-size="32">${escapeXml(String(state.enemies.length))}</text>
-    <text x="638" y="38" fill="#d8b4fe" font-size="18">MAP</text>
-    <text x="638" y="82" fill="#f3e8ff" font-size="26">${escapeXml(mapSize)}</text>
-    <text x="28" y="104" fill="#f8e7ce" font-size="14">${escapeXml(state.lastLog)}</text>
+  <g>
+    <text x="28" y="38" font-size="18" class="${HUD_TEXT_CLASS}">HEALTH</text>
+    <text x="28" y="82" font-size="32" class="${HUD_TEXT_CLASS}">${escapeXml(String(state.health))}</text>
+    <text x="168" y="38" font-size="18" class="${HUD_TEXT_CLASS}">AMMO</text>
+    <text x="168" y="82" font-size="32" class="${HUD_TEXT_CLASS}">${escapeXml(String(state.ammo))}</text>
+    <text x="288" y="38" font-size="18" class="${HUD_TEXT_CLASS}">SCORE</text>
+    <text x="288" y="82" font-size="32" class="${HUD_TEXT_CLASS}">${escapeXml(String(state.score))}</text>
+    <text x="438" y="38" font-size="18" class="${HUD_TEXT_CLASS}">FLOOR</text>
+    <text x="438" y="82" font-size="32" class="${HUD_TEXT_CLASS}">${escapeXml(String(state.floor))}</text>
+    <text x="534" y="38" font-size="18" class="${HUD_TEXT_CLASS}">ENEMIES</text>
+    <text x="534" y="82" font-size="32" class="${HUD_TEXT_CLASS}">${escapeXml(String(state.enemies.length))}</text>
+    <text x="638" y="38" font-size="18" class="${HUD_TEXT_CLASS}">MAP</text>
+    <text x="638" y="82" font-size="26" class="${HUD_TEXT_CLASS}">${escapeXml(mapSize)}</text>
+    <text x="28" y="104" font-size="14" class="${HUD_TEXT_CLASS}">${escapeXml(state.lastLog)}</text>
+    ${renderVersionLabel(692, 104)}
   </g>
 </svg>`;
 }

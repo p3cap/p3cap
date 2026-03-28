@@ -4,10 +4,15 @@ Place manual Doom assets in this folder, grouped by purpose:
 - `characters/` for enemies, guns, and combat effects
 - `ui/` for buttons, screens, and overlays
 
+Map themes:
+- put map textures in numbered subfolders like `map/1_dungeon/`, `map/2_wolf/`, `map/3_infested/`
+- each theme lasts 5 floors: `1_*` covers floors `1-5`, `2_*` covers floors `6-10`, `3_*` covers floors `11-15`, and so on
+- if a theme is missing a wall, floor, or ceiling texture, Doom falls back to the closest earlier theme that has that surface
+
 Supported prefixes:
-- `map/wall.*` or multiple variants like `map/wall-a.*`, `map/wall-2.*`
-- `map/ceiling.*` or multiple variants like `map/ceiling-a.*`, `map/ceiling-2.*`
-- `map/floor.*` or multiple variants like `map/floor-a.*`, `map/floor-2.*`
+- `map/<theme>/wall.*` or multiple variants like `map/1_dungeon/wall-1.*`, `map/1_dungeon/wall-2.*`
+- `map/<theme>/ceiling.*` or multiple variants like `map/1_dungeon/ceiling-1.*`, `map/1_dungeon/ceiling-2.*`
+- `map/<theme>/floor.*` or multiple variants like `map/1_dungeon/floor-1.*`, `map/1_dungeon/floor-2.*`
 - `characters/imp-1.*`, `characters/enemy-1.*`, or `characters/enemy-*-1.*` for 1 HP enemies
 - numbered enemy variants like `characters/imp-2.*`, `characters/enemy-2.*`, or `characters/enemy-imp-2.*` for 2 HP enemies
 - higher numbered enemy variants like `characters/imp-3.*`, `characters/enemy-3.*`, or `characters/enemy-imp-3.*` for tougher enemies
@@ -44,5 +49,7 @@ Enemy art is picked from the enemy's max HP tier, not current HP, so damaged tou
 Enemy HP is capped by both floor difficulty and the highest numbered enemy asset tier you provide.
 Floor balance:
 - floors `1-2` only spawn `1 HP` enemies
+- floors `3-4` still stay all `1 HP`
+- from floor `5`, tougher enemies can use up to about `20%` of the roster, so roughly `80%` still stay `1 HP`
 - `2 HP` enemies start appearing from floor `5`
-- `3 HP` enemies can appear from floor `10`, but stay rare
+- `3 HP` enemies can appear from floor `10`, but stay rare and only take a small part of that tougher-enemy share

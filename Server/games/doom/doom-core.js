@@ -19,13 +19,14 @@ const ACTION_LOGS = {
   doomWait: "You wait one beat."
 };
 
-const DEFAULT_THEME_NAME = "rust";
-const THEME_NAMES = ["rust", "tech", "crypt"];
+const DOOM_MAP_ASSET_DIR = path.join(__dirname, "..", "..", "assets", "doom", "map");
+const DEFAULT_THEME_NAME = "1_dungeon";
 const VIEW_EVENT_TYPES = new Set(["none", "shoot", "enemy-death", "player-death"]);
 const OVERLAY_EVENT_TYPES = new Set(["none", "player-hurt"]);
 const DOOM_CHARACTER_ASSET_DIR = path.join(__dirname, "..", "..", "assets", "doom", "characters");
 const SUPPORTED_ENEMY_ASSET_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"]);
 let enemyHpTierCache = null;
+let mapThemeNameCache = null;
 
 function escapeXml(value) {
   return String(value)
@@ -89,8 +90,43 @@ function createRandomSeed() {
   return mixSeed(Date.now(), Math.random(), process.pid || 0);
 }
 
+function getAvailableMapThemeNames() {
+  if (mapThemeNameCache) {
+    return mapThemeNameCache;
+  }
+
+  try {
+    if (fs.existsSync(DOOM_MAP_ASSET_DIR)) {
+      const themes = fs.readdirSync(DOOM_MAP_ASSET_DIR, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && /^\d+[_-]/.test(entry.name))
+        .map((entry) => entry.name)
+        .sort((left, right) => {
+          const leftMatch = /^(\d+)/.exec(left);
+          const rightMatch = /^(\d+)/.exec(right);
+          const leftIndex = Number(leftMatch && leftMatch[1]) || 0;
+          const rightIndex = Number(rightMatch && rightMatch[1]) || 0;
+          if (leftIndex !== rightIndex) {
+            return leftIndex - rightIndex;
+          }
+          return left.localeCompare(right);
+        });
+
+      if (themes.length > 0) {
+        mapThemeNameCache = themes;
+        return mapThemeNameCache;
+      }
+    }
+  } catch (error) {
+    // Ignore theme scan failures and fall back to the default theme.
+  }
+
+  mapThemeNameCache = [DEFAULT_THEME_NAME];
+  return mapThemeNameCache;
+}
+
 function normalizeThemeName(candidate) {
-  return THEME_NAMES.includes(candidate) ? candidate : DEFAULT_THEME_NAME;
+  const availableThemes = getAvailableMapThemeNames();
+  return availableThemes.includes(candidate) ? candidate : availableThemes[0] || DEFAULT_THEME_NAME;
 }
 
 function getAvailableEnemyHpTiers() {
@@ -463,7 +499,16 @@ function createEnemy({ id, x, y, hp = 1, maxHp = hp }) {
 }
 
 function pickTextureTheme(mapSeed, floor) {
-  return THEME_NAMES[mixSeed("theme", mapSeed, floor) % THEME_NAMES.length] || DEFAULT_THEME_NAME;
+  const availableThemes = getAvailableMapThemeNames();
+  if (availableThemes.length === 0) {
+    return DEFAULT_THEME_NAME;
+  }
+
+  const themeIndex = Math.min(
+    availableThemes.length - 1,
+    Math.max(0, Math.floor((Math.max(1, floor) - 1) / 5))
+  );
+  return availableThemes[themeIndex] || availableThemes[0] || DEFAULT_THEME_NAME;
 }
 
 function chooseEnemyHpTier(floor, maxHp, rng, enemyIndex, enemyCount) {
@@ -471,39 +516,45 @@ function chooseEnemyHpTier(floor, maxHp, rng, enemyIndex, enemyCount) {
     return 1;
   }
 
-  let hp = 1;
-  const higherTierSlots = [];
+  const bandProgress = ((Math.max(1, floor) - 1) % 5) / 4;
+  const higherTierBudgetRatio = floor >= 5
+    ? Math.min(0.2, 0.12 + (bandProgress * 0.08))
+    : 0;
+  const tierSlots = [];
 
-  if (maxHp >= 2) {
-    const toughRatio = floor < 5
-      ? 0
-      : Math.max(0.14, Math.min(0.54, 0.16 + Math.max(0, floor - 5) * 0.05));
+  if (maxHp >= 2 && floor >= 5) {
+    let eliteRatio = 0;
+    if (maxHp >= 3 && floor >= 10) {
+      const eliteBandDepth = Math.floor((floor - 10) / 5);
+      eliteRatio = Math.min(0.08, 0.03 + (bandProgress * 0.02) + (eliteBandDepth * 0.01));
+    }
+
+    const toughRatio = Math.max(0, higherTierBudgetRatio - eliteRatio);
     const toughCount = Math.min(
       Math.max(0, enemyCount - 1),
-      Math.max(floor >= 5 ? 1 : 0, Math.round(enemyCount * toughRatio))
+      Math.max(1, Math.round(enemyCount * toughRatio))
     );
-    higherTierSlots.push({ tier: 2, count: toughCount });
-  }
+    tierSlots.push({ tier: 2, count: toughCount });
 
-  if (maxHp >= 3) {
-    const eliteRatio = floor < 10
-      ? 0
-      : Math.max(0.08, Math.min(0.24, 0.08 + Math.max(0, floor - 10) * 0.04));
-    const eliteCount = Math.min(
-      Math.max(0, enemyCount - 2),
-      Math.max(1, Math.round(enemyCount * eliteRatio))
-    );
-    higherTierSlots.push({ tier: 3, count: eliteCount });
-  }
-
-  for (const slot of higherTierSlots.reverse()) {
-    if (enemyIndex < slot.count) {
-      hp = Math.max(hp, slot.tier);
-      break;
+    if (eliteRatio > 0) {
+      const eliteCount = Math.min(
+        Math.max(0, enemyCount - toughCount - 1),
+        Math.max(1, Math.round(enemyCount * eliteRatio))
+      );
+      tierSlots.push({ tier: 3, count: eliteCount });
     }
   }
 
-  return hp;
+  let assignedIndex = enemyIndex;
+  for (let index = tierSlots.length - 1; index >= 0; index -= 1) {
+    const slot = tierSlots[index];
+    if (assignedIndex < slot.count) {
+      return slot.tier;
+    }
+    assignedIndex -= slot.count;
+  }
+
+  return 1;
 }
 
 function createEnemiesForFloor(mapRows, start, floor, mapSeed) {
@@ -624,6 +675,7 @@ function parseMapRows(source, fallbackRows) {
 }
 
 function parseEnemies(source, mapRows, floor, fallbackEnemies) {
+  const floorMaxHp = getMaxEnemyHpForFloor(floor);
   const raw = Array.isArray(source)
     ? source
     : typeof source === "string"
@@ -637,14 +689,23 @@ function parseEnemies(source, mapRows, floor, fallbackEnemies) {
       : [];
 
   const enemies = raw
-    .map((enemy, index) => ({
-      id: typeof enemy.id === "string" && enemy.id.trim() ? enemy.id.trim() : `enemy-${floor}-${index + 1}`,
-      type: "enemy",
-      x: clampNumber(enemy.x, 1, 1, mapRows[0].length - 2),
-      y: clampNumber(enemy.y, 1, 1, mapRows.length - 2),
-      hp: clampNumber(enemy.hp, 1, 1, 9),
-      maxHp: clampNumber(enemy.maxHp, clampNumber(enemy.hp, 1, 1, 9), 1, 9)
-    }))
+    .map((enemy, index) => {
+      const normalizedMaxHp = clampNumber(
+        enemy.maxHp,
+        clampNumber(enemy.hp, 1, 1, floorMaxHp),
+        1,
+        floorMaxHp
+      );
+
+      return {
+        id: typeof enemy.id === "string" && enemy.id.trim() ? enemy.id.trim() : `enemy-${floor}-${index + 1}`,
+        type: "enemy",
+        x: clampNumber(enemy.x, 1, 1, mapRows[0].length - 2),
+        y: clampNumber(enemy.y, 1, 1, mapRows.length - 2),
+        hp: clampNumber(enemy.hp, normalizedMaxHp, 1, normalizedMaxHp),
+        maxHp: normalizedMaxHp
+      };
+    })
     .filter((enemy) => !isWallAt(mapRows, enemy.x, enemy.y));
 
   return enemies.length > 0 ? enemies : fallbackEnemies;
@@ -1129,6 +1190,7 @@ module.exports = {
   clampNumber,
   createFreshDoomState,
   escapeXml,
+  getAvailableMapThemeNames,
   getEnemyAt,
   getFloorDimensions,
   getForwardDelta,
