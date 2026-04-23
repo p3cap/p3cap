@@ -3,12 +3,9 @@ const {
   buildLobbyPath,
   createFreshDoomState,
   escapeXml,
-  getEnemyAt,
   getFloorDimensions,
   getForwardDelta,
   getLeftDelta,
-  getRightDelta,
-  getTileInDirection,
   normalizeDoomState,
   applyDoomAction
 } = require("./doom-core");
@@ -20,7 +17,6 @@ const {
   getSurfaceTextureUri,
   renderEmbeddedFontStyle,
   renderTextureSymbolDefs,
-  renderTexturedPolygon,
   renderTexturedRect
 } = require("./doom-textures");
 const {
@@ -28,19 +24,10 @@ const {
   projectBillboardBounds
 } = require("./doom-raycaster");
 
-const ENEMY_SPRITE_BY_DEPTH = {
-  1: { cx: 360, baseY: 308, w: 126, h: 168 },
-  2: { cx: 360, baseY: 288, w: 86, h: 116 },
-  3: { cx: 360, baseY: 270, w: 56, h: 76 },
-  4: { cx: 360, baseY: 256, w: 38, h: 52 }
-};
 const VIEWPORT_BOX = { x: 10, y: 10, w: 700, h: 342 };
 const HUD_BOX = { x: 10, y: 360, w: 700, h: 40 };
-const RADAR_AREA = { w: 122, h: 88, inset: 10 };
 const GUN_SPRITE_BOX = { x: 334, y: 234, w: 152, h: 118 };
-const VIEWPORT_CENTER = { x: 360, y: 180 };
 const HUD_TEXT_CLASS = "doom-ui-text outlined";
-const FRAME_FADE_DURATION_MS = 140;
 const GUN_EVENT_BEGIN = "0.14s";
 const ENEMY_REACTION_BEGIN = "0.32s";
 const PLAYER_HURT_BEGIN = "0.86s";
@@ -147,37 +134,6 @@ function renderHome(rawState, { defaultRedirectUrl = "", gameSlug, lobbySlug, ac
 </html>`;
 }
 
-function renderEnemySprite(state, enemy, depth) {
-  const sprite = ENEMY_SPRITE_BY_DEPTH[depth];
-  if (!sprite || !enemy) {
-    return "";
-  }
-
-  const textureUri = getEnemyTextureUri(state, enemy);
-  if (!textureUri) {
-    return "";
-  }
-  const { x, y, w, h, cx, baseY } = getEnemySpriteBounds(depth);
-
-  return `
-  <g>
-    <ellipse cx="${cx}" cy="${baseY - 4}" rx="${Math.floor(w * 0.33)}" ry="${Math.max(4, Math.floor(h * 0.08))}" fill="#000000" opacity="0.35" />
-    <image href="${escapeXml(textureUri)}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="xMidYMax meet" image-rendering="pixelated" />
-  </g>`;
-}
-
-function getEnemySpriteBounds(depth) {
-  const sprite = ENEMY_SPRITE_BY_DEPTH[depth];
-  if (!sprite) {
-    return null;
-  }
-
-  return {
-    ...sprite,
-    x: sprite.cx - Math.floor(sprite.w / 2),
-    y: sprite.baseY - sprite.h
-  };
-}
 
 function renderGunSprite(state) {
   const isFiring = state.viewEvent && (state.viewEvent.type === "shoot" || state.viewEvent.type === "enemy-death");
@@ -325,142 +281,6 @@ function renderViewEvent(state, frame) {
   return "";
 }
 
-function withPlayer(state, playerOverride) {
-  return {
-    ...state,
-    player: {
-      ...state.player,
-      ...playerOverride
-    }
-  };
-}
-
-function withSceneState(state, { playerOverride = null, enemiesOverride = null } = {}) {
-  return {
-    ...state,
-    player: playerOverride
-      ? {
-        ...state.player,
-        ...playerOverride
-      }
-      : state.player,
-    enemies: Array.isArray(enemiesOverride)
-      ? enemiesOverride.map((enemy) => ({ ...enemy }))
-      : state.enemies
-  };
-}
-
-function getDarknessOpacity(depth) {
-  return Math.min(0.55, 0.12 + (depth * 0.08));
-}
-
-function renderSideEnemySprite(state, enemy, depth, direction, clipId, clipPoints) {
-  const sprite = getEnemySpriteBounds(depth);
-  if (!sprite || !enemy) {
-    return "";
-  }
-
-  const textureUri = getEnemyTextureUri(state, enemy);
-  if (!textureUri) {
-    return "";
-  }
-
-  const scale = 0.82;
-  const offset = Math.round(sprite.w * 0.75) * (direction < 0 ? -1 : 1);
-  const w = Math.max(18, Math.round(sprite.w * scale));
-  const h = Math.max(24, Math.round(sprite.h * scale));
-  const cx = sprite.cx + offset;
-  const x = cx - Math.floor(w / 2);
-  const y = sprite.baseY - h;
-
-  return `
-  <g opacity="0.9">
-    <ellipse cx="${cx}" cy="${sprite.baseY - 4}" rx="${Math.floor(w * 0.33)}" ry="${Math.max(3, Math.floor(h * 0.08))}" fill="#000000" opacity="0.35" />
-    <defs>
-      <clipPath id="${clipId}">
-        <polygon points="${clipPoints}" />
-      </clipPath>
-    </defs>
-    <image href="${escapeXml(textureUri)}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="xMidYMax meet" image-rendering="pixelated" clip-path="url(#${clipId})" />
-  </g>`;
-}
-
-function buildViewportScene(state) {
-  const frames = [
-    { x: 26, y: 22, w: 668, h: 308 },
-    { x: 92, y: 50, w: 536, h: 252 },
-    { x: 156, y: 80, w: 408, h: 196 },
-    { x: 218, y: 108, w: 284, h: 150 },
-    { x: 278, y: 136, w: 164, h: 106 },
-    { x: 324, y: 160, w: 72, h: 70 }
-  ];
-  const corridorLayers = [];
-  let frontWall = "";
-  let enemyInSight = null;
-  let enemyDepth = 0;
-  const sideEnemies = [];
-
-  for (let depth = 1; depth <= 5; depth += 1) {
-    const outer = frames[depth - 1];
-    const inner = frames[depth];
-    const center = getTileInDirection(state, depth, 0);
-    const left = getTileInDirection(state, depth, -1);
-    const right = getTileInDirection(state, depth, 1);
-    const leftPoints = `${outer.x},${outer.y} ${inner.x},${inner.y} ${inner.x},${inner.y + inner.h} ${outer.x},${outer.y + outer.h}`;
-    const rightPoints = `${outer.x + outer.w},${outer.y} ${inner.x + inner.w},${inner.y} ${inner.x + inner.w},${inner.y + inner.h} ${outer.x + outer.w},${outer.y + outer.h}`;
-    const ceilingPoints = `${outer.x},${outer.y} ${outer.x + outer.w},${outer.y} ${inner.x + inner.w},${inner.y} ${inner.x},${inner.y}`;
-    const floorPoints = `${outer.x},${outer.y + outer.h} ${outer.x + outer.w},${outer.y + outer.h} ${inner.x + inner.w},${inner.y + inner.h} ${inner.x},${inner.y + inner.h}`;
-
-      corridorLayers.push(renderTexturedPolygon(ceilingPoints, getSurfaceTextureUri(state, "ceiling", `${center.x}:${center.y}:ceiling:${depth}`)));
-      corridorLayers.push(`<polygon points="${ceilingPoints}" fill="none" stroke="#100908" stroke-width="1" opacity="0.45" />`);
-      corridorLayers.push(renderTexturedPolygon(floorPoints, getSurfaceTextureUri(state, "floor", `${center.x}:${center.y}:floor:${depth}`)));
-
-      if (left.wall) {
-        corridorLayers.push(renderTexturedPolygon(leftPoints, getSurfaceTextureUri(state, "wall", `${left.x}:${left.y}`)));
-        corridorLayers.push(`<polygon points="${leftPoints}" fill="none" stroke="#23120b" stroke-width="2" />`);
-      } else {
-        corridorLayers.push(renderTexturedPolygon(leftPoints, getSurfaceTextureUri(state, "wall", `${left.x}:${left.y}:open`)));
-        corridorLayers.push(`<polygon points="${leftPoints}" fill="#000000" opacity="${getDarknessOpacity(depth)}" />`);
-        if (left.enemy) {
-          const clipId = `clip-left-${depth}-${left.enemy.id}`;
-          sideEnemies.push(renderSideEnemySprite(state, left.enemy, depth, -1, clipId, leftPoints));
-        }
-      }
-
-      if (right.wall) {
-        corridorLayers.push(renderTexturedPolygon(rightPoints, getSurfaceTextureUri(state, "wall", `${right.x}:${right.y}`)));
-        corridorLayers.push(`<polygon points="${rightPoints}" fill="none" stroke="#23120b" stroke-width="2" />`);
-      } else {
-        corridorLayers.push(renderTexturedPolygon(rightPoints, getSurfaceTextureUri(state, "wall", `${right.x}:${right.y}:open`)));
-        corridorLayers.push(`<polygon points="${rightPoints}" fill="#000000" opacity="${getDarknessOpacity(depth)}" />`);
-        if (right.enemy) {
-          const clipId = `clip-right-${depth}-${right.enemy.id}`;
-          sideEnemies.push(renderSideEnemySprite(state, right.enemy, depth, 1, clipId, rightPoints));
-        }
-      }
-
-    if (!enemyDepth && center.enemy && !center.wall) {
-      enemyDepth = depth;
-      enemyInSight = center.enemy;
-    }
-
-    if (center.wall) {
-      frontWall = `
-        ${renderTexturedRect(inner.x, inner.y, inner.w, inner.h, getSurfaceTextureUri(state, "wall", `${center.x}:${center.y}`))}
-        <rect x="${inner.x}" y="${inner.y}" width="${inner.w}" height="${inner.h}" fill="none" stroke="#23120b" stroke-width="3" />
-      `;
-      break;
-    }
-  }
-
-  return {
-    corridorLayers,
-    frontWall,
-    enemyDepth,
-    enemyInSight,
-    sideEnemies
-  };
-}
 
 function renderOverlayEvent(state) {
   const damageFrameUri = state.overlayEvent && state.overlayEvent.type === "player-hurt"
@@ -486,70 +306,23 @@ function renderViewSvg(rawState) {
     return renderFloorClearSvg(state);
   }
 
-  const shouldAnimate = Boolean(state.lastAction);
-  const animationBegin = "0s";
-  const animationMs = FRAME_FADE_DURATION_MS;
-  const previousState = shouldAnimate ? withSceneState(state, {
-    playerOverride: state.lastPlayer,
-    enemiesOverride: state.lastEnemies
-  }) : null;
   const currentFrame = createRaycastFrame(state);
-  const previousFrame = previousState ? createRaycastFrame(previousState) : null;
-  const frameTextureDefs = renderTextureSymbolDefs([
-    ...Array.from(previousFrame ? previousFrame.textureUris : []),
-    ...Array.from(currentFrame.textureUris || [])
-  ]);
-
-  const mapWidth = state.mapRows[0].length;
-  const mapHeight = state.mapRows.length;
-  const radarCell = Math.max(4, Math.min(8, Math.floor((RADAR_AREA.w - 2) / mapWidth), Math.floor((RADAR_AREA.h - 2) / mapHeight)));
-  const radarPixelWidth = mapWidth * radarCell;
-  const radarPixelHeight = mapHeight * radarCell;
-  const radarMapX = VIEWPORT_BOX.x + VIEWPORT_BOX.w - radarPixelWidth - RADAR_AREA.inset;
-  const radarMapY = VIEWPORT_BOX.y + RADAR_AREA.inset;
-  const radarCenterX = radarMapX + (state.player.x * radarCell) + Math.floor(radarCell / 2);
-  const radarCenterY = radarMapY + (state.player.y * radarCell) + Math.floor(radarCell / 2);
-  const radarForward = getForwardDelta(state.player.facing);
-  const radarLeft = getLeftDelta(state.player.facing);
-  const radarPlayerTriangle = [
-    `${radarCenterX + (radarForward.x * Math.max(3, Math.floor(radarCell * 0.38)))},${radarCenterY + (radarForward.y * Math.max(3, Math.floor(radarCell * 0.38)))}`,
-    `${radarCenterX + (radarLeft.x * Math.max(2, Math.floor(radarCell * 0.28)))},${radarCenterY + (radarLeft.y * Math.max(2, Math.floor(radarCell * 0.28)))}`,
-    `${radarCenterX - (radarLeft.x * Math.max(2, Math.floor(radarCell * 0.28)))},${radarCenterY - (radarLeft.y * Math.max(2, Math.floor(radarCell * 0.28)))}`
-  ].join(" ");
-  const radarTiles = state.mapRows
-    .map((row, y) => row.split("").map((tile, x) => `<rect x="${radarMapX + (x * radarCell)}" y="${radarMapY + (y * radarCell)}" width="${radarCell - 1}" height="${radarCell - 1}" fill="${tile === "#" ? "#4a1d10" : "#16100e"}" />`).join(""))
-    .join("");
-  const radarEnemies = state.enemies
-    .map((enemy) => `<rect x="${radarMapX + (enemy.x * radarCell) + 1}" y="${radarMapY + (enemy.y * radarCell) + 1}" width="${Math.max(3, radarCell - 2)}" height="${Math.max(3, radarCell - 2)}" fill="#ef4444" />`)
-    .join("");
+  const frameTextureDefs = renderTextureSymbolDefs(Array.from(currentFrame.textureUris || []));
 
 return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-label="Doom-style game viewport">
   ${renderEmbeddedFontStyle()}
   ${frameTextureDefs}
   <rect width="720" height="420" fill="#090607" />
-  <g>
-    <rect x="${VIEWPORT_BOX.x}" y="${VIEWPORT_BOX.y}" width="${VIEWPORT_BOX.w}" height="${VIEWPORT_BOX.h}" fill="#120909" />
-      ${shouldAnimate && previousFrame ? `
-      <g opacity="1">
-        <animate attributeName="opacity" begin="${animationBegin}" from="1" to="0" dur="${animationMs}ms" fill="freeze" />
-        ${previousFrame.sceneMarkup}
-      </g>
-      ` : ""}
-      <g opacity="1">
-        ${currentFrame.sceneMarkup}
-      </g>
-      ${currentFrame.enemyMarkup}
-      ${renderViewEvent(state, currentFrame)}
-      ${renderGunSprite(state)}
-      ${renderOverlayEvent(state)}
-      ${renderViewportFrame()}
-    ${renderBottomStats(state)}
-    ${renderVersionLabel()}
-    ${radarTiles}
-    ${radarEnemies}
-    <polygon points="${radarPlayerTriangle}" fill="#fde68a" />
-  </g>
+  <rect x="${VIEWPORT_BOX.x}" y="${VIEWPORT_BOX.y}" width="${VIEWPORT_BOX.w}" height="${VIEWPORT_BOX.h}" fill="#120909" />
+  ${currentFrame.sceneMarkup}
+  ${currentFrame.enemyMarkup}
+  ${renderViewEvent(state, currentFrame)}
+  ${renderGunSprite(state)}
+  ${renderOverlayEvent(state)}
+  ${renderViewportFrame()}
+  ${renderBottomStats(state)}
+  ${renderVersionLabel()}
 </svg>`;
 }
 
