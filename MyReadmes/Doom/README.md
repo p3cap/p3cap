@@ -1,5 +1,8 @@
 <div align="center">
   <img src="https://p3cap.vercel.app/doom/global/images/view.svg" alt="Retro Doom-like game screen" width="9999" />
+  <br />
+  <img src="https://p3cap.vercel.app/doom/global/images/minimap.svg" alt="Dungeon minimap" />
+  <br />
   <a href="https://p3cap.vercel.app/doom/global/turn-left?redirect=https%3A%2F%2Fgithub.com%2Fp3cap">
     <img src="https://p3cap.vercel.app/doom/global/images/button-turn-left.svg" alt="Turn left" width="132" height="132"/>
   </a>
