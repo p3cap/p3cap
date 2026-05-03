@@ -477,29 +477,15 @@ function renderOverlayEvent(state) {
   </g>`;
 }
 
-function renderViewSvg(rawState) {
-  const state = normalizeDoomState(rawState);
-  if (state.status === "dead" || state.health <= 0) {
-    return renderDeathViewSvg(state);
-  }
-  if (state.status === "floor-clear") {
-    return renderFloorClearSvg(state);
+function createEmbeddedSvgDataUri(svgMarkup) {
+  if (!svgMarkup) {
+    return "";
   }
 
-  const shouldAnimate = Boolean(state.lastAction);
-  const animationBegin = "0s";
-  const animationMs = FRAME_FADE_DURATION_MS;
-  const previousState = shouldAnimate ? withSceneState(state, {
-    playerOverride: state.lastPlayer,
-    enemiesOverride: state.lastEnemies
-  }) : null;
-  const currentFrame = createRaycastFrame(state);
-  const previousFrame = previousState ? createRaycastFrame(previousState) : null;
-  const frameTextureDefs = renderTextureSymbolDefs([
-    ...Array.from(previousFrame ? previousFrame.textureUris : []),
-    ...Array.from(currentFrame.textureUris || [])
-  ]);
+  return `data:image/svg+xml;base64,${Buffer.from(svgMarkup).toString("base64")}`;
+}
 
+function renderRadarMarkup(state) {
   const mapWidth = state.mapRows[0].length;
   const mapHeight = state.mapRows.length;
   const radarCell = Math.max(4, Math.min(8, Math.floor((RADAR_AREA.w - 2) / mapWidth), Math.floor((RADAR_AREA.h - 2) / mapHeight)));
@@ -523,32 +509,65 @@ function renderViewSvg(rawState) {
     .map((enemy) => `<rect x="${radarMapX + (enemy.x * radarCell) + 1}" y="${radarMapY + (enemy.y * radarCell) + 1}" width="${Math.max(3, radarCell - 2)}" height="${Math.max(3, radarCell - 2)}" fill="#ef4444" />`)
     .join("");
 
+  return `${radarTiles}${radarEnemies}<polygon points="${radarPlayerTriangle}" fill="#fde68a" />`;
+}
+
+function renderStaticViewBaseSvg(state, frame) {
+  const textureDefs = renderTextureSymbolDefs(Array.from(frame.textureUris || []));
+  const radarMarkup = renderRadarMarkup(state);
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-label="Doom static scene">
+  ${renderEmbeddedFontStyle()}
+  ${textureDefs}
+  <rect width="720" height="420" fill="#090607" />
+  <rect x="${VIEWPORT_BOX.x}" y="${VIEWPORT_BOX.y}" width="${VIEWPORT_BOX.w}" height="${VIEWPORT_BOX.h}" fill="#120909" />
+  ${frame.sceneMarkup}
+  ${renderViewportFrame()}
+  ${renderBottomStats(state)}
+  ${renderVersionLabel()}
+  ${radarMarkup}
+</svg>`;
+}
+
+function renderViewSvg(rawState) {
+  const state = normalizeDoomState(rawState);
+  if (state.status === "dead" || state.health <= 0) {
+    return renderDeathViewSvg(state);
+  }
+  if (state.status === "floor-clear") {
+    return renderFloorClearSvg(state);
+  }
+
+  const shouldAnimate = Boolean(state.lastAction);
+  const animationBegin = "0s";
+  const animationMs = FRAME_FADE_DURATION_MS;
+  const previousState = shouldAnimate ? withSceneState(state, {
+    playerOverride: state.lastPlayer,
+    enemiesOverride: state.lastEnemies
+  }) : null;
+  const currentFrame = createRaycastFrame(state);
+  const previousFrame = previousState ? createRaycastFrame(previousState) : null;
+  const currentBaseImageUri = createEmbeddedSvgDataUri(renderStaticViewBaseSvg(state, currentFrame));
+  const previousBaseImageUri = shouldAnimate && previousState && previousFrame
+    ? createEmbeddedSvgDataUri(renderStaticViewBaseSvg(previousState, previousFrame))
+    : "";
+
 return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-label="Doom-style game viewport">
-  ${renderEmbeddedFontStyle()}
-  ${frameTextureDefs}
   <rect width="720" height="420" fill="#090607" />
   <g>
-    <rect x="${VIEWPORT_BOX.x}" y="${VIEWPORT_BOX.y}" width="${VIEWPORT_BOX.w}" height="${VIEWPORT_BOX.h}" fill="#120909" />
-      ${shouldAnimate && previousFrame ? `
+      ${previousBaseImageUri ? `
       <g opacity="1">
         <animate attributeName="opacity" begin="${animationBegin}" from="1" to="0" dur="${animationMs}ms" fill="freeze" />
-        ${previousFrame.sceneMarkup}
+        <image href="${escapeXml(previousBaseImageUri)}" x="0" y="0" width="720" height="420" preserveAspectRatio="none" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />
       </g>
       ` : ""}
-      <g opacity="1">
-        ${currentFrame.sceneMarkup}
-      </g>
+      <image href="${escapeXml(currentBaseImageUri)}" x="0" y="0" width="720" height="420" preserveAspectRatio="none" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />
       ${currentFrame.enemyMarkup}
       ${renderViewEvent(state, currentFrame)}
       ${renderGunSprite(state)}
       ${renderOverlayEvent(state)}
-      ${renderViewportFrame()}
-    ${renderBottomStats(state)}
-    ${renderVersionLabel()}
-    ${radarTiles}
-    ${radarEnemies}
-    <polygon points="${radarPlayerTriangle}" fill="#fde68a" />
   </g>
 </svg>`;
 }
