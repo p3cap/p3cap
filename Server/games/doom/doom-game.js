@@ -635,9 +635,9 @@ function renderButtonSvg(buttonType, label) {
   const textureUri = getButtonTextureUri(buttonType);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="150" height="58" viewBox="0 0 150 58" role="img" aria-label="${escapeXml(label)} button">
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="${escapeXml(label)} button">
   ${textureUri
-    ? `<image href="${escapeXml(textureUri)}" x="0" y="0" width="150" height="58" preserveAspectRatio="none" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />`
+    ? `<image href="${escapeXml(textureUri)}" x="0" y="0" width="64" height="64" preserveAspectRatio="none" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />`
     : ""}
 </svg>`;
 }

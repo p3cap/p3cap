@@ -901,46 +901,6 @@ function canPlayerSeeEnemy(state, enemy, maxDepth = 5) {
   return false;
 }
 
-function hasLineOfSight(state, fromX, fromY, toX, toY) {
-  const deltaX = toX - fromX;
-  const deltaY = toY - fromY;
-  const steps = Math.max(Math.abs(deltaX), Math.abs(deltaY));
-  if (steps <= 0) {
-    return true;
-  }
-
-  for (let step = 1; step < steps; step += 1) {
-    const sampleX = Math.round(fromX + ((deltaX * step) / steps));
-    const sampleY = Math.round(fromY + ((deltaY * step) / steps));
-    if (isWallAt(state.mapRows, sampleX, sampleY)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-function isEnemyVisibleToPlayer(state, enemy) {
-  if (!enemy) {
-    return false;
-  }
-
-  const forward = getForwardDelta(state.player.facing);
-  const deltaX = enemy.x - state.player.x;
-  const deltaY = enemy.y - state.player.y;
-  const distance = Math.sqrt((deltaX ** 2) + (deltaY ** 2));
-  if (distance <= 0 || distance > 8) {
-    return false;
-  }
-
-  const facingDot = ((deltaX / distance) * forward.x) + ((deltaY / distance) * forward.y);
-  if (facingDot < 0.15) {
-    return false;
-  }
-
-  return hasLineOfSight(state, state.player.x, state.player.y, enemy.x, enemy.y);
-}
-
 function chooseEnemyMove(enemy, state, occupied) {
   const diffX = state.player.x - enemy.x;
   const diffY = state.player.y - enemy.y;
@@ -1030,8 +990,8 @@ function advanceEnemies(state) {
 
     occupied.delete(pointKey(enemy.x, enemy.y));
     const rng = createSeededRng(mixSeed("enemy-wander", state.mapSeed, state.turn, enemy.id));
-    const canSee = isEnemyVisibleToPlayer(state, enemy);
-    const shouldWander = !canSee && rng() < 0.32;
+    const canSee = canPlayerSeeEnemy(state, enemy);
+    const shouldWander = !canSee && rng() < 0.75;
 
     if (canSee) {
       const nextPosition = chooseEnemyMove(enemy, state, occupied);
@@ -1041,8 +1001,12 @@ function advanceEnemies(state) {
         movers += 1;
       }
     } else if (shouldWander) {
-      const nextPosition = chooseEnemyWanderMove(enemy, state, occupied, rng);
-      if (nextPosition) {
+      const wanderSteps = 1 + Math.floor(rng() * 2);
+      for (let step = 0; step < wanderSteps; step += 1) {
+        const nextPosition = chooseEnemyWanderMove(enemy, state, occupied, rng);
+        if (!nextPosition) {
+          break;
+        }
         enemy.x = nextPosition.x;
         enemy.y = nextPosition.y;
         movers += 1;

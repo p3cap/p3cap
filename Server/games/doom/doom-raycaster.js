@@ -19,8 +19,8 @@ const VIEWPORT_RENDER_BOX = {
 };
 
 const CAMERA_PLANE_SCALE = 0.66;
-const FLOOR_SAMPLE_WIDTH = 1;
-const FLOOR_SAMPLE_HEIGHT = 1;
+const FLOOR_SAMPLE_WIDTH = 4;
+const FLOOR_SAMPLE_HEIGHT = 2;
 const MAX_RENDER_DISTANCE = 24;
 const MIN_DISTANCE = 0.0001;
 const ENEMY_MOVE_BEGIN = "0.54s";
@@ -445,23 +445,14 @@ function renderEnemies(state, frame, textureLookup) {
     const bobBegin = hasMovementAnimation
       ? `${Number.parseFloat(movementBegin) + (movementDurationMs / 1000)}s`
       : "0s";
-    const lightFilterId = `enemy-light-${entry.enemy.id}-${state.turn}`;
 
     pieces.push(`
     <defs>
       <clipPath id="${clipId}">
         <rect x="${clipBounds.x}" y="${clipBounds.y}" width="${clipBounds.width}" height="${clipBounds.height}" />
       </clipPath>
-      <filter id="${lightFilterId}" color-interpolation-filters="sRGB">
-        <feComponentTransfer>
-          <feFuncR type="linear" slope="${light.toFixed(3)}" />
-          <feFuncG type="linear" slope="${light.toFixed(3)}" />
-          <feFuncB type="linear" slope="${light.toFixed(3)}" />
-          <feFuncA type="linear" slope="1" />
-        </feComponentTransfer>
-      </filter>
     </defs>
-    <g filter="url(#${lightFilterId})">
+    <g opacity="${light.toFixed(3)}">
       <animateTransform attributeName="transform" type="translate" begin="${bobBegin}" dur="1700ms" values="0 0;0 -${bobOffset};0 0" keyTimes="0;0.5;1" repeatCount="indefinite" />
       <image href="${escapeXml(textureUri)}" x="${currentBounds.x}" y="${currentBounds.y}" width="${currentBounds.width}" height="${currentBounds.height}" preserveAspectRatio="xMidYMax meet" clip-path="url(#${clipId})" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;">
         ${movementMarkup}
