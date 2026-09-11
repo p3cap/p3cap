@@ -54,6 +54,7 @@ The backend supports both of these env var pairs:
 
 - `README_REDIRECT_URL`
   Optional fallback URL if the `?redirect=` query param is missing.
+  `?redirect=` only accepts URLs on `github.com`, this server, or this URL's host.
   Example: `https://github.com/YOUR_USERNAME`
 - `STATE_KEY`
   Optional custom Redis key prefix. Default: `readmeCookie:state`
@@ -108,7 +109,15 @@ Custom lobbies use keys in this shape:
 readmeCookie:state:<game-slug>:<lobby-slug>
 ```
 
-After deleting the key, the next request will recreate a fresh empty save automatically.
+After deleting the key, the game shows a fresh save again and the next action stores it.
+
+Leaderboards are sorted sets, one per game (lobby slug -> best score):
+
+```text
+readmeCookie:state:leaderboard:<game-slug>
+```
+
+If you set `STATE_KEY` or `LEADERBOARD_KEY`, the prefix changes to match.
 
 ### Local development
 
@@ -163,6 +172,6 @@ Legacy aliases still work for the default game:
 
 Custom lobby rule:
 
-- Any valid lobby slug in the middle URL segment is created automatically on first use.
+- Any valid lobby slug in the middle URL segment is created by its first action. Until then its images show the starting state without saving anything.
 - New lobby creation is anonymously throttled per IP and game to reduce spray abuse.
 - Slugs are lowercase letters, numbers, and `-`, up to 48 characters.

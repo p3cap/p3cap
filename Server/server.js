@@ -51,7 +51,8 @@ function getStateStore(gameSlug, lobbySlug) {
     }
 
     const stateStore = game.createFileStateStore({
-      filePath
+      filePath,
+      lobbySlug: normalizedLobbySlug
     });
 
     stateStoreCache.set(cacheKey, stateStore);
@@ -76,9 +77,14 @@ async function main() {
 
   const server = http.createServer((request, response) => {
     handleRequest(request, response).catch((error) => {
+      console.error(error);
+      if (response.headersSent) {
+        response.end();
+        return;
+      }
+
       response.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
       response.end("Internal Server Error");
-      console.error(error);
     });
   });
 

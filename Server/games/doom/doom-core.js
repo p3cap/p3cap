@@ -676,19 +676,23 @@ function parseMapRows(source, fallbackRows) {
 
 function parseEnemies(source, mapRows, floor, fallbackEnemies) {
   const floorMaxHp = getMaxEnemyHpForFloor(floor);
-  const raw = Array.isArray(source)
-    ? source
-    : typeof source === "string"
-      ? (() => {
-        try {
-          return JSON.parse(source);
-        } catch (error) {
-          return [];
-        }
-      })()
-      : [];
+  const parsed = typeof source === "string"
+    ? (() => {
+      try {
+        return JSON.parse(source);
+      } catch (error) {
+        return null;
+      }
+    })()
+    : source;
 
-  const enemies = raw
+  // An empty list means the floor really is cleared, so only a missing or broken list falls back.
+  if (!Array.isArray(parsed)) {
+    return fallbackEnemies;
+  }
+
+  return parsed
+    .filter((enemy) => enemy && typeof enemy === "object")
     .map((enemy, index) => {
       const normalizedMaxHp = clampNumber(
         enemy.maxHp,
@@ -707,8 +711,6 @@ function parseEnemies(source, mapRows, floor, fallbackEnemies) {
       };
     })
     .filter((enemy) => !isWallAt(mapRows, enemy.x, enemy.y));
-
-  return enemies.length > 0 ? enemies : fallbackEnemies;
 }
 
 function createDoomFloorState({

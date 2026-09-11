@@ -273,8 +273,13 @@ function getSurfaceTextureUri(state, surfaceType, variantKey) {
   );
 }
 
+function roundTexel(value) {
+  return Number.isInteger(value) ? value : Number(value.toFixed(1));
+}
+
 function getTextureSymbolId(textureUri) {
-  return `doom-texture-${hashString(String(textureUri || ""))}`;
+  // Short on purpose: this id is repeated for every tile of every frame.
+  return `t${hashString(String(textureUri || ""))}`;
 }
 
 function renderTextureSymbolDefs(textureUris) {
@@ -407,7 +412,12 @@ function renderCroppedTextureRectById(
     ? ""
     : ` opacity="${normalizedOpacity.toFixed(3)}"`;
 
-  return `<svg x="${x}" y="${y}" width="${width}" height="${height}" viewBox="${viewBoxX} ${viewBoxY} ${viewBoxWidth} ${viewBoxHeight}" preserveAspectRatio="none" overflow="hidden"${opacityAttribute}><use href="#${textureId}" x="0" y="0" width="${TEXTURE_VIRTUAL_SIZE}" height="${TEXTURE_VIRTUAL_SIZE}" /></svg>`;
+  // A nested <svg> already clips to its own viewport and <use> already starts at 0,0. Spelling both
+  // out on each of the ~1300 tiles in a frame only costs response size, as does texel precision
+  // finer than a tenth.
+  const viewBox = [viewBoxX, viewBoxY, viewBoxWidth, viewBoxHeight].map(roundTexel).join(" ");
+
+  return `<svg x="${x}" y="${y}" width="${width}" height="${height}" viewBox="${viewBox}" preserveAspectRatio="none"${opacityAttribute}><use href="#${textureId}" width="${TEXTURE_VIRTUAL_SIZE}" height="${TEXTURE_VIRTUAL_SIZE}"/></svg>`;
 }
 
 function renderCroppedTextureRect(

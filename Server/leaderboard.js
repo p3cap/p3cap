@@ -16,7 +16,7 @@ function formatGameLabel(gameSlug) {
 }
 
 function normalizeTopCount(value) {
-  const parsed = Math.floor(Number(value));
+  const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed)) {
     return 8;
   }

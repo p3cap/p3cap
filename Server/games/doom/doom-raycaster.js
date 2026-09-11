@@ -19,19 +19,14 @@ const VIEWPORT_RENDER_BOX = {
 };
 
 const CAMERA_PLANE_SCALE = 0.66;
-const FLOOR_SAMPLE_WIDTH = 4;
-const FLOOR_SAMPLE_HEIGHT = 2;
+const FLOOR_SAMPLE_HEIGHT = 1;
 const MAX_RENDER_DISTANCE = 24;
 const MIN_DISTANCE = 0.0001;
+const MIN_TEXEL_SPAN = 0.5;
 const ENEMY_MOVE_BEGIN = "0.54s";
 
 function clamp(value, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, value));
-}
-
-function moduloTexture(value) {
-  const wrapped = value % TEXTURE_VIRTUAL_SIZE;
-  return wrapped < 0 ? wrapped + TEXTURE_VIRTUAL_SIZE : wrapped;
 }
 
 function getCamera(state) {
@@ -221,8 +216,35 @@ function projectBillboard(frame, worldX, worldY, widthScale = 1, heightScale = w
   };
 }
 
-function renderFloorAndCeiling(state, camera, textureLookup) {
-  const pieces = [];
+// Columns where a row crosses into the next floor tile, snapped to the column grid so neighbouring
+// patches share an edge exactly and cannot leave a seam. Only one world axis moves along a row,
+// because the camera always faces an axis.
+function getRowTileBoundaries(origin, step) {
+  const boundaries = [0];
+
+  if (Math.abs(step) > MIN_DISTANCE) {
+    const rowStart = origin;
+    const rowEnd = origin + (step * VIEWPORT_RENDER_BOX.internalWidth);
+
+    for (let tile = Math.ceil(Math.min(rowStart, rowEnd)); tile <= Math.floor(Math.max(rowStart, rowEnd)); tile += 1) {
+      const column = Math.round((tile - origin) / step);
+      if (column > 0 && column < VIEWPORT_RENDER_BOX.internalWidth) {
+        boundaries.push(column);
+      }
+    }
+
+    boundaries.sort((left, right) => left - right);
+  }
+
+  boundaries.push(VIEWPORT_RENDER_BOX.internalWidth);
+  return boundaries;
+}
+
+// The camera always faces an axis, so the patch of floor behind each slice is an axis-aligned
+// rectangle in world space. Mapping that whole rectangle onto the slice draws the texels it really
+// covers; sampling one texel per fixed block is what made the floor and ceiling look so blocky.
+function collectFloorSamples(camera, textureLookup) {
+  const samples = [];
   const leftRayX = camera.dirX - camera.planeX;
   const leftRayY = camera.dirY - camera.planeY;
   const rightRayX = camera.dirX + camera.planeX;
@@ -231,68 +253,116 @@ function renderFloorAndCeiling(state, camera, textureLookup) {
   const posZ = halfHeight;
 
   for (let row = Math.floor(halfHeight) + 1; row < VIEWPORT_RENDER_BOX.internalHeight; row += FLOOR_SAMPLE_HEIGHT) {
-    const rowDistance = posZ / Math.max(MIN_DISTANCE, row - halfHeight);
-    const stepX = rowDistance * (rightRayX - leftRayX) / VIEWPORT_RENDER_BOX.internalWidth;
-    const stepY = rowDistance * (rightRayY - leftRayY) / VIEWPORT_RENDER_BOX.internalWidth;
-    let worldX = camera.posX + (rowDistance * leftRayX);
-    let worldY = camera.posY + (rowDistance * leftRayY);
+    const topDistance = posZ / Math.max(MIN_DISTANCE, row - halfHeight);
+    const bottomDistance = posZ / Math.max(MIN_DISTANCE, (row + FLOOR_SAMPLE_HEIGHT) - halfHeight);
+    const topStepX = (topDistance * (rightRayX - leftRayX)) / VIEWPORT_RENDER_BOX.internalWidth;
+    const topStepY = (topDistance * (rightRayY - leftRayY)) / VIEWPORT_RENDER_BOX.internalWidth;
+    const bottomStepX = (bottomDistance * (rightRayX - leftRayX)) / VIEWPORT_RENDER_BOX.internalWidth;
+    const bottomStepY = (bottomDistance * (rightRayY - leftRayY)) / VIEWPORT_RENDER_BOX.internalWidth;
+    const topOriginX = camera.posX + (topDistance * leftRayX);
+    const topOriginY = camera.posY + (topDistance * leftRayY);
+    const bottomOriginX = camera.posX + (bottomDistance * leftRayX);
+    const bottomOriginY = camera.posY + (bottomDistance * leftRayY);
     const floorY = VIEWPORT_RENDER_BOX.y + (row * VIEWPORT_RENDER_BOX.pixelHeight);
     const ceilingY = VIEWPORT_RENDER_BOX.y + ((VIEWPORT_RENDER_BOX.internalHeight - row - FLOOR_SAMPLE_HEIGHT) * VIEWPORT_RENDER_BOX.pixelHeight);
     const sampleHeight = VIEWPORT_RENDER_BOX.pixelHeight * FLOOR_SAMPLE_HEIGHT;
-    const floorLight = getLightLevel(rowDistance, 0.16);
-    const ceilingLight = getLightLevel(rowDistance, 0.24);
+    const floorLight = getLightLevel(topDistance, 0.16);
+    const ceilingLight = getLightLevel(topDistance, 0.24);
 
-    for (let column = 0; column < VIEWPORT_RENDER_BOX.internalWidth; column += FLOOR_SAMPLE_WIDTH) {
-      const sampleWorldX = worldX + (stepX * 0.5);
-      const sampleWorldY = worldY + (stepY * 0.5);
-      const cellX = Math.floor(sampleWorldX);
-      const cellY = Math.floor(sampleWorldY);
-      const textureX = moduloTexture(Math.floor((sampleWorldX - cellX) * TEXTURE_VIRTUAL_SIZE));
-      const textureY = moduloTexture(Math.floor((sampleWorldY - cellY) * TEXTURE_VIRTUAL_SIZE));
+    const horizontalAxisIsX = Math.abs(topStepX) >= Math.abs(topStepY);
+    const boundaries = getRowTileBoundaries(
+      horizontalAxisIsX ? topOriginX : topOriginY,
+      horizontalAxisIsX ? topStepX : topStepY
+    );
+
+    for (let index = 0; index < boundaries.length - 1; index += 1) {
+      const column = boundaries[index];
+      const nextColumn = boundaries[index + 1];
+      if (nextColumn <= column) {
+        continue;
+      }
+
+      const worldXs = [
+        topOriginX + (topStepX * column),
+        topOriginX + (topStepX * nextColumn),
+        bottomOriginX + (bottomStepX * column),
+        bottomOriginX + (bottomStepX * nextColumn)
+      ];
+      const worldYs = [
+        topOriginY + (topStepY * column),
+        topOriginY + (topStepY * nextColumn),
+        bottomOriginY + (bottomStepY * column),
+        bottomOriginY + (bottomStepY * nextColumn)
+      ];
+      const minWorldX = Math.min(...worldXs);
+      const maxWorldX = Math.max(...worldXs);
+      const minWorldY = Math.min(...worldYs);
+      const maxWorldY = Math.max(...worldYs);
+      const cellX = Math.floor((minWorldX + maxWorldX) / 2);
+      const cellY = Math.floor((minWorldY + maxWorldY) / 2);
       const screenX = VIEWPORT_RENDER_BOX.x + (column * VIEWPORT_RENDER_BOX.pixelWidth);
       const screenWidth = Math.min(
-        VIEWPORT_RENDER_BOX.pixelWidth * FLOOR_SAMPLE_WIDTH,
+        VIEWPORT_RENDER_BOX.pixelWidth * (nextColumn - column),
         VIEWPORT_RENDER_BOX.x + VIEWPORT_RENDER_BOX.width - screenX
       );
+      // Held inside the tile, so a patch never bleeds into a neighbour drawn with another texture.
+      const viewX = clamp((minWorldX - cellX) * TEXTURE_VIRTUAL_SIZE, 0, TEXTURE_VIRTUAL_SIZE - MIN_TEXEL_SPAN);
+      const viewY = clamp((minWorldY - cellY) * TEXTURE_VIRTUAL_SIZE, 0, TEXTURE_VIRTUAL_SIZE - MIN_TEXEL_SPAN);
+      const viewWidth = clamp((maxWorldX - minWorldX) * TEXTURE_VIRTUAL_SIZE, MIN_TEXEL_SPAN, TEXTURE_VIRTUAL_SIZE - viewX);
+      const viewHeight = clamp((maxWorldY - minWorldY) * TEXTURE_VIRTUAL_SIZE, MIN_TEXEL_SPAN, TEXTURE_VIRTUAL_SIZE - viewY);
       const floorTexture = textureLookup.surface("floor", cellX, cellY);
       const ceilingTexture = textureLookup.surface("ceiling", cellX, cellY);
 
       if (floorTexture) {
-        pieces.push(renderCroppedTextureRectById(
-          screenX,
-          floorY,
-          screenWidth,
-          sampleHeight,
-          getTextureSymbolId(floorTexture),
-          textureX,
-          textureY,
-          1,
-          1,
-          floorLight
-        ));
+        samples.push({
+          textureUri: floorTexture,
+          x: screenX,
+          y: floorY,
+          width: screenWidth,
+          height: sampleHeight,
+          viewX,
+          viewY,
+          viewWidth,
+          viewHeight,
+          light: floorLight
+        });
       }
 
       if (ceilingTexture) {
-        pieces.push(renderCroppedTextureRectById(
-          screenX,
-          Math.max(VIEWPORT_RENDER_BOX.y, ceilingY),
-          screenWidth,
-          sampleHeight,
-          getTextureSymbolId(ceilingTexture),
-          textureX,
-          textureY,
-          1,
-          1,
-          ceilingLight
-        ));
+        samples.push({
+          textureUri: ceilingTexture,
+          x: screenX,
+          y: Math.max(VIEWPORT_RENDER_BOX.y, ceilingY),
+          width: screenWidth,
+          height: sampleHeight,
+          viewX,
+          viewY,
+          viewWidth,
+          viewHeight,
+          light: ceilingLight
+        });
       }
-
-      worldX += stepX * FLOOR_SAMPLE_WIDTH;
-      worldY += stepY * FLOOR_SAMPLE_WIDTH;
     }
   }
 
-  return pieces.join("\n");
+  return samples;
+}
+
+function renderFloorSamples(samples) {
+  return samples
+    .map((sample) => renderCroppedTextureRectById(
+      sample.x,
+      sample.y,
+      sample.width,
+      sample.height,
+      getTextureSymbolId(sample.textureUri),
+      sample.viewX,
+      sample.viewY,
+      sample.viewWidth,
+      sample.viewHeight,
+      sample.light
+    ))
+    .join("\n");
 }
 
 function renderWalls(rays, textureLookup) {
@@ -480,39 +550,17 @@ function createRaycastFrame(state) {
     }
   }
 
-  for (let row = Math.floor(VIEWPORT_RENDER_BOX.internalHeight / 2) + 1; row < VIEWPORT_RENDER_BOX.internalHeight; row += FLOOR_SAMPLE_HEIGHT) {
-    const rowDistance = (VIEWPORT_RENDER_BOX.internalHeight / 2) / Math.max(MIN_DISTANCE, row - (VIEWPORT_RENDER_BOX.internalHeight / 2));
-    const leftRayX = camera.dirX - camera.planeX;
-    const leftRayY = camera.dirY - camera.planeY;
-    const rightRayX = camera.dirX + camera.planeX;
-    const rightRayY = camera.dirY + camera.planeY;
-    const stepX = rowDistance * (rightRayX - leftRayX) / VIEWPORT_RENDER_BOX.internalWidth;
-    const stepY = rowDistance * (rightRayY - leftRayY) / VIEWPORT_RENDER_BOX.internalWidth;
-    let worldX = camera.posX + (rowDistance * leftRayX);
-    let worldY = camera.posY + (rowDistance * leftRayY);
-    for (let column = 0; column < VIEWPORT_RENDER_BOX.internalWidth; column += FLOOR_SAMPLE_WIDTH) {
-      const sampleWorldX = worldX + (stepX * 0.5);
-      const sampleWorldY = worldY + (stepY * 0.5);
-      const cellX = Math.floor(sampleWorldX);
-      const cellY = Math.floor(sampleWorldY);
-      const floorTextureUri = textureLookup.surface("floor", cellX, cellY);
-      const ceilingTextureUri = textureLookup.surface("ceiling", cellX, cellY);
-      if (floorTextureUri) {
-        textureUris.add(floorTextureUri);
-      }
-      if (ceilingTextureUri) {
-        textureUris.add(ceilingTextureUri);
-      }
-      worldX += stepX * FLOOR_SAMPLE_WIDTH;
-      worldY += stepY * FLOOR_SAMPLE_WIDTH;
-    }
+  // One pass builds the floor and ceiling patches, so the defs and the markup can never disagree.
+  const floorSamples = collectFloorSamples(camera, textureLookup);
+  for (const sample of floorSamples) {
+    textureUris.add(sample.textureUri);
   }
 
   const frame = {
     camera,
     zBuffer
   };
-  const sceneMarkup = `${renderFloorAndCeiling(state, camera, textureLookup)}
+  const sceneMarkup = `${renderFloorSamples(floorSamples)}
 ${renderWalls(rays, textureLookup)}`;
   const enemyMarkup = renderEnemies(state, frame, textureLookup);
 

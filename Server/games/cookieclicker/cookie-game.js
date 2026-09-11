@@ -309,24 +309,21 @@ function renderImage(route, state) {
 async function runAction(route, stateStore) {
   if (route === "click") {
     if (typeof stateStore.click === "function") {
-      await stateStore.click();
-      return;
+      return stateStore.click();
     }
 
-    await stateStore.mutateState((current) => ({
+    return stateStore.mutateState((current) => ({
       ...current,
       clicks: current.clicks + current.clickPower,
       lastLog: `Cookie clicked: +${current.clickPower}`
     }));
-    return;
   }
 
   if (typeof stateStore.upgrade === "function") {
-    await stateStore.upgrade();
-    return;
+    return stateStore.upgrade();
   }
 
-  await stateStore.mutateState((current) => {
+  return stateStore.mutateState((current) => {
     if (current.clicks < current.upgradeCost) {
       return {
         ...current,

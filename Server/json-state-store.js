@@ -1,20 +1,46 @@
+const crypto = require("crypto");
 const fs = require("fs/promises");
 const path = require("path");
+
+const STATE_BUSY_ERROR_CODE = "STATE_BUSY";
+const LOCK_TTL_MS = 5000;
+const LOCK_WAIT_MS = 5500;
+const LOCK_RETRY_MS = 50;
+
+// Only releases the lock while it is still the one this instance took.
+const releaseLockScript = `
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+  return redis.call("DEL", KEYS[1])
+end
+
+return 0
+`;
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function createStateBusyError(key) {
+  const error = new Error(`Timed out waiting for the state lock on ${key}`);
+  error.code = STATE_BUSY_ERROR_CODE;
+  return error;
+}
 
 function createFileJsonStateStore({ filePath, createFreshState, normalizeState }) {
   let cachedState = null;
   let mutationQueue = Promise.resolve();
 
-  async function hasState() {
+  async function readState() {
     if (cachedState) {
-      return true;
+      return cachedState;
     }
 
     try {
-      await fs.access(filePath);
-      return true;
+      const normalized = normalizeState(JSON.parse(await fs.readFile(filePath, "utf8")));
+      cachedState = normalized;
+      return normalized;
     } catch (error) {
-      return false;
+      return null;
     }
   }
 
@@ -65,13 +91,15 @@ function createFileJsonStateStore({ filePath, createFreshState, normalizeState }
   }
 
   return {
-    hasState,
+    readState,
     getState,
     mutateState
   };
 }
 
 function createRedisJsonStateStore({ redis, key, createFreshState, normalizeState }) {
+  const lockKey = `${key}:lock`;
+
   function parseStoredValue(raw) {
     if (raw === null || raw === undefined) {
       return null;
@@ -96,25 +124,24 @@ function createRedisJsonStateStore({ redis, key, createFreshState, normalizeStat
     return null;
   }
 
-  async function hasState() {
-    const raw = await redis.get(key);
-    return parseStoredValue(raw) !== null;
+  async function readState() {
+    const parsed = parseStoredValue(await redis.get(key));
+    return parsed ? normalizeState(parsed) : null;
   }
 
   async function writeInitialState() {
     const fresh = normalizeState(createFreshState());
-    await redis.set(key, JSON.stringify(fresh));
-    return fresh;
+    // NX, so a save that landed first keeps its state instead of being reset.
+    const created = await redis.set(key, JSON.stringify(fresh), { nx: true });
+    if (created) {
+      return fresh;
+    }
+
+    return (await readState()) || fresh;
   }
 
   async function getState() {
-    const raw = await redis.get(key);
-    const parsed = parseStoredValue(raw);
-    if (parsed) {
-      return normalizeState(parsed);
-    }
-
-    return writeInitialState();
+    return (await readState()) || writeInitialState();
   }
 
   async function saveState(state) {
@@ -126,14 +153,41 @@ function createRedisJsonStateStore({ redis, key, createFreshState, normalizeStat
     return normalized;
   }
 
+  // The REST API has no WATCH, so read-modify-write runs under a short-lived lock key. Without it,
+  // two players acting in the same moment would both read the old state and one move would be lost.
+  async function acquireLock() {
+    const token = crypto.randomUUID();
+    const deadline = Date.now() + LOCK_WAIT_MS;
+
+    for (;;) {
+      const acquired = await redis.set(lockKey, token, { nx: true, px: LOCK_TTL_MS });
+      if (acquired) {
+        return token;
+      }
+
+      if (Date.now() >= deadline) {
+        throw createStateBusyError(key);
+      }
+
+      await wait(LOCK_RETRY_MS + Math.floor(Math.random() * LOCK_RETRY_MS));
+    }
+  }
+
   async function mutateState(mutator) {
-    const current = await getState();
-    const next = await Promise.resolve(mutator(JSON.parse(JSON.stringify(current))));
-    return saveState(next);
+    const token = await acquireLock();
+
+    try {
+      const current = await getState();
+      const next = await Promise.resolve(mutator(JSON.parse(JSON.stringify(current))));
+      return await saveState(next);
+    } finally {
+      // A failed release just leaves the lock to expire on its own.
+      await redis.eval(releaseLockScript, [lockKey], [token]).catch(() => undefined);
+    }
   }
 
   return {
-    hasState,
+    readState,
     getState,
     mutateState
   };
@@ -141,5 +195,6 @@ function createRedisJsonStateStore({ redis, key, createFreshState, normalizeStat
 
 module.exports = {
   createFileJsonStateStore,
-  createRedisJsonStateStore
+  createRedisJsonStateStore,
+  STATE_BUSY_ERROR_CODE
 };

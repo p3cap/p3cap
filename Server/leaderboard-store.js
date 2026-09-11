@@ -56,6 +56,16 @@ function getGameEntriesFromState(state, gameSlug) {
     }));
 }
 
+// Top `limit` entries, plus the `lobbySlug` entry at the end when it ranks below them.
+function selectVisibleEntries(entries, { limit = entries.length, lobbySlug = "" } = {}) {
+  const visibleEntries = entries.slice(0, limit);
+  const highlightedEntry = lobbySlug && !visibleEntries.some((entry) => entry.lobbySlug === lobbySlug)
+    ? entries.find((entry) => entry.lobbySlug === lobbySlug)
+    : null;
+
+  return highlightedEntry ? [...visibleEntries, highlightedEntry] : visibleEntries;
+}
+
 function createFileLeaderboardStore({ filePath }) {
   let cachedState = null;
   let mutationQueue = Promise.resolve();
@@ -130,8 +140,8 @@ function createFileLeaderboardStore({ filePath }) {
     });
   }
 
-  async function getGameEntries(gameSlug) {
-    return getGameEntriesFromState(await getState(), gameSlug);
+  async function getGameEntries(gameSlug, options) {
+    return selectVisibleEntries(getGameEntriesFromState(await getState(), gameSlug), options);
   }
 
   return {
@@ -142,6 +152,15 @@ function createFileLeaderboardStore({ filePath }) {
 }
 
 function createRedisLeaderboardStore({ redis, key }) {
+  // Each game is a sorted set at `<key>:<game-slug>` (lobby slug -> best score), so score updates are
+  // atomic and reads only fetch the rows being shown. `key` itself held the older single-JSON
+  // leaderboard; it is imported into the sorted sets once, then moved aside.
+  let legacyImport = null;
+
+  function getGameKey(gameSlug) {
+    return `${key}:${gameSlug}`;
+  }
+
   function parseStoredValue(raw) {
     if (raw === null || raw === undefined) {
       return null;
@@ -166,49 +185,78 @@ function createRedisLeaderboardStore({ redis, key }) {
     return null;
   }
 
-  async function getState() {
-    const raw = await redis.get(key);
-    return normalizeLeaderboardState(parseStoredValue(raw) || {});
-  }
+  function importLegacyLeaderboard() {
+    if (!legacyImport) {
+      legacyImport = (async () => {
+        const legacyState = parseStoredValue(await redis.get(key));
+        if (!legacyState) {
+          return;
+        }
 
-  async function saveState(state) {
-    const normalized = normalizeLeaderboardState({
-      ...state,
-      updatedAt: new Date().toISOString()
-    });
-    await redis.set(key, JSON.stringify(normalized));
-    return normalized;
+        const { games } = normalizeLeaderboardState(legacyState);
+        for (const [gameSlug, gameData] of Object.entries(games)) {
+          const scoreMembers = Object.entries(gameData.lobbies)
+            .map(([lobbySlug, entry]) => ({ score: entry.bestScore, member: lobbySlug }));
+          if (scoreMembers.length > 0) {
+            await redis.zadd(getGameKey(gameSlug), { gt: true }, ...scoreMembers);
+          }
+        }
+
+        // Fails harmlessly when another instance already moved it.
+        await redis.rename(key, `${key}:legacy-backup`).catch(() => undefined);
+      })().catch((error) => {
+        legacyImport = null;
+        throw error;
+      });
+    }
+
+    return legacyImport;
   }
 
   async function recordScore(gameSlug, lobbySlug, score) {
     const normalizedScore = Math.max(0, Math.floor(Number(score) || 0));
     if (!normalizedScore) {
-      return getState();
+      return;
     }
 
-    const current = await getState();
-    if (!current.games[gameSlug]) {
-      current.games[gameSlug] = { lobbies: {} };
-    }
-
-    const existing = current.games[gameSlug].lobbies[lobbySlug];
-    if (!existing || normalizedScore > existing.bestScore) {
-      current.games[gameSlug].lobbies[lobbySlug] = {
-        bestScore: normalizedScore,
-        updatedAt: new Date().toISOString()
-      };
-      return saveState(current);
-    }
-
-    return current;
+    await importLegacyLeaderboard();
+    await redis.zadd(getGameKey(gameSlug), { gt: true }, { score: normalizedScore, member: lobbySlug });
   }
 
-  async function getGameEntries(gameSlug) {
-    return getGameEntriesFromState(await getState(), gameSlug);
+  async function getGameEntries(gameSlug, { limit = 20, lobbySlug = "" } = {}) {
+    await importLegacyLeaderboard();
+    const gameKey = getGameKey(gameSlug);
+    const flatEntries = await redis.zrange(gameKey, 0, limit - 1, { rev: true, withScores: true });
+    const entries = [];
+
+    for (let index = 0; index < flatEntries.length; index += 2) {
+      entries.push({
+        // The client JSON-parses replies, so a slug like "123" comes back as a number.
+        lobbySlug: String(flatEntries[index]),
+        bestScore: Number(flatEntries[index + 1]),
+        rank: entries.length + 1
+      });
+    }
+
+    if (lobbySlug && !entries.some((entry) => entry.lobbySlug === lobbySlug)) {
+      const [rank, bestScore] = await Promise.all([
+        redis.zrevrank(gameKey, lobbySlug),
+        redis.zscore(gameKey, lobbySlug)
+      ]);
+
+      if (rank !== null && bestScore !== null) {
+        entries.push({
+          lobbySlug,
+          bestScore: Number(bestScore),
+          rank: Number(rank) + 1
+        });
+      }
+    }
+
+    return entries;
   }
 
   return {
-    getState,
     recordScore,
     getGameEntries
   };

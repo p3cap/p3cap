@@ -61,7 +61,8 @@ function getHandler() {
 
       const stateStore = game.createRedisStateStore({
         redis,
-        key: stateKey
+        key: stateKey,
+        lobbySlug: normalizedLobbySlug
       });
 
       stateStoreCache.set(cacheKey, stateStore);

@@ -1,9 +1,12 @@
 const { getGameDefinition } = require("./game-registry");
+const { STATE_BUSY_ERROR_CODE } = require("./json-state-store");
 const { normalizeTopCount, renderLeaderboardSvg } = require("./leaderboard");
 
 const DEFAULT_GAME_SLUG = "cookieclicker";
 const DEFAULT_LOBBY_SLUG = "global";
 const DEFAULT_ACTION_COOLDOWN_MS = 800;
+const STATIC_IMAGE_CACHE_CONTROL = "public, max-age=3600, s-maxage=86400";
+const REDIRECT_ALLOWED_HOSTS = ["github.com"];
 
 const LEGACY_ROUTE_MAP = new Map([
   ["/", "home"],
@@ -38,10 +41,6 @@ function normalizeLobbySlug(candidate) {
   return normalizeSlug(candidate);
 }
 
-function buildGamePath(gameSlug, suffix = "") {
-  return `/${gameSlug}${suffix}`;
-}
-
 function resolveLeaderboardRoute(pathname) {
   const segments = pathname.split("/").filter(Boolean);
   if (segments.length !== 2 || segments[0] !== "leaderboard") {
@@ -74,15 +73,21 @@ function getLeaderboardScore(game, state) {
   return 0;
 }
 
-function sendSvg(response, svg) {
+function sendSvg(response, svg, { cacheable = false } = {}) {
+  const cacheHeaders = cacheable
+    ? { "Cache-Control": STATIC_IMAGE_CACHE_CONTROL }
+    : {
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0",
+      "CDN-Cache-Control": "no-store",
+      "Vercel-CDN-Cache-Control": "no-store",
+      "Surrogate-Control": "no-store",
+      Pragma: "no-cache",
+      Expires: "0"
+    };
+
   response.writeHead(200, {
     "Content-Type": "image/svg+xml; charset=utf-8",
-    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0",
-    "CDN-Cache-Control": "no-store",
-    "Vercel-CDN-Cache-Control": "no-store",
-    "Surrogate-Control": "no-store",
-    Pragma: "no-cache",
-    Expires: "0"
+    ...cacheHeaders
   });
   response.end(svg);
 }
@@ -132,19 +137,24 @@ function sendRedirect(response, location, statusCode = 303, extraHeaders = {}) {
   response.end();
 }
 
-function getSafeAbsoluteUrl(candidate) {
+function getHostname(candidate) {
+  try {
+    return new URL(String(candidate || "").trim()).hostname.toLowerCase();
+  } catch (error) {
+    return "";
+  }
+}
+
+function getAllowedRedirectUrl(candidate, allowedHosts) {
   if (!candidate) {
     return "";
   }
 
-  const trimmed = String(candidate).trim();
-  if (trimmed.startsWith("https://") || trimmed.startsWith("http://")) {
-    return trimmed;
-  }
-
   try {
-    const parsed = new URL(trimmed);
-    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+    const parsed = new URL(String(candidate).trim());
+    const hostname = parsed.hostname.toLowerCase();
+    const isAllowedHost = allowedHosts.some((host) => hostname === host || hostname.endsWith(`.${host}`));
+    if ((parsed.protocol === "http:" || parsed.protocol === "https:") && isAllowedHost) {
       return parsed.toString();
     }
   } catch (error) {
@@ -155,17 +165,20 @@ function getSafeAbsoluteUrl(candidate) {
 }
 
 function resolveFallbackLocation(request, url, defaultRedirectUrl) {
-  const requested = getSafeAbsoluteUrl(url.searchParams.get("redirect"));
+  // Only bounce back to GitHub, the configured README page or this server, so action links can't be used as an open redirect.
+  const allowedHosts = [...REDIRECT_ALLOWED_HOSTS, getHostname(defaultRedirectUrl), url.hostname].filter(Boolean);
+
+  const requested = getAllowedRedirectUrl(url.searchParams.get("redirect"), allowedHosts);
   if (requested) {
     return requested;
   }
 
-  const referrer = getSafeAbsoluteUrl(request.headers.referer || request.headers.referrer || "");
+  const referrer = getAllowedRedirectUrl(request.headers.referer || request.headers.referrer || "", allowedHosts);
   if (referrer) {
     return referrer;
   }
 
-  const configured = getSafeAbsoluteUrl(defaultRedirectUrl);
+  const configured = getAllowedRedirectUrl(defaultRedirectUrl, allowedHosts);
   if (configured) {
     return configured;
   }
@@ -301,7 +314,7 @@ function resolveRoute(pathname, defaultGameSlug, defaultLobbySlug) {
   };
 }
 
-function sendImageResponse(response, asset) {
+function sendImageResponse(response, asset, options) {
   if (!asset || !asset.type) {
     response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
     response.end("Not Found");
@@ -313,7 +326,13 @@ function sendImageResponse(response, asset) {
     return;
   }
 
-  sendSvg(response, asset.body);
+  sendSvg(response, asset.body, options);
+}
+
+function createInitialLobbyState(game, lobbySlug) {
+  return typeof game.createLobbyState === "function"
+    ? game.createLobbyState(lobbySlug)
+    : game.createFreshState();
 }
 
 function createRequestHandler({
@@ -333,21 +352,23 @@ function createRequestHandler({
     : () => Promise.resolve(stateStore);
 
   return async function handleRequest(request, response) {
-    const url = getRequestUrl(request);
-    const leaderboardRoute = resolveLeaderboardRoute(url.pathname);
-    const resolvedRoute = resolveRoute(url.pathname, normalizedDefaultGameSlug, normalizedDefaultLobbySlug);
-
-    if (request.method !== "GET") {
-      response.writeHead(405, { "Content-Type": "text/plain; charset=utf-8" });
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      response.writeHead(405, { "Content-Type": "text/plain; charset=utf-8", Allow: "GET, HEAD" });
       response.end("Method Not Allowed");
       return;
     }
+
+    const url = getRequestUrl(request);
+    const leaderboardRoute = resolveLeaderboardRoute(url.pathname);
 
     if (leaderboardRoute) {
       const highlightLobby = normalizeLobbySlug(url.searchParams.get("lobby"));
       const topCount = normalizeTopCount(url.searchParams.get("top"));
       const entries = leaderboardStore && typeof leaderboardStore.getGameEntries === "function"
-        ? await leaderboardStore.getGameEntries(leaderboardRoute.gameSlug)
+        ? await leaderboardStore.getGameEntries(leaderboardRoute.gameSlug, {
+          limit: topCount,
+          lobbySlug: highlightLobby
+        })
         : [];
 
       sendSvg(response, renderLeaderboardSvg({
@@ -359,6 +380,7 @@ function createRequestHandler({
       return;
     }
 
+    const resolvedRoute = resolveRoute(url.pathname, normalizedDefaultGameSlug, normalizedDefaultLobbySlug);
     if (!resolvedRoute) {
       response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
       response.end("Not Found");
@@ -381,40 +403,19 @@ function createRequestHandler({
     }
 
     if (!game.routeNeedsState(route)) {
-      sendImageResponse(response, game.renderImage(route, game.createFreshState()));
+      sendImageResponse(response, game.renderImage(route, game.createFreshState()), { cacheable: true });
       return;
     }
 
     const activeStateStore = await resolveStateStore(gameSlug, lobbySlug);
-    if (!activeStateStore || typeof activeStateStore.getState !== "function") {
+    if (!activeStateStore || typeof activeStateStore.readState !== "function") {
       throw new Error(`Missing state store for ${gameSlug}/${lobbySlug}`);
     }
 
-    if (
-      lobbySlug !== normalizedDefaultLobbySlug &&
-      rateLimiter &&
-      typeof rateLimiter.consume === "function" &&
-      typeof activeStateStore.hasState === "function" &&
-      !(await activeStateStore.hasState())
-    ) {
-      const lobbyCreationResult = await rateLimiter.consume({
-        action: "lobby-create",
-        gameSlug,
-        lobbySlug,
-        clientId: getClientId(request)
-      });
-
-      if (!lobbyCreationResult.allowed) {
-        sendRateLimitedBounce(
-          response,
-          buildGamePath(gameSlug),
-          lobbyCreationResult.retryAfterMs || actionCooldownMs
-        );
-        return;
-      }
-    }
-
-    const state = game.normalizeState(await activeStateStore.getState());
+    // Reads never create a lobby. Until its first action, a missing lobby is shown from its unsaved
+    // starting state, so image requests (which all arrive through GitHub's image proxy) never write.
+    const storedState = await activeStateStore.readState();
+    const state = game.normalizeState(storedState || createInitialLobbyState(game, lobbySlug));
 
     if (route === "home") {
       sendHtml(response, game.renderHome(state, {
@@ -441,24 +442,54 @@ function createRequestHandler({
     if (game.actionRoutes.has(route)) {
       const fallbackLocation = resolveFallbackLocation(request, url, defaultRedirectUrl);
 
+      if (request.method === "HEAD") {
+        sendBackBounce(response, fallbackLocation);
+        return;
+      }
+
       if (rateLimiter && typeof rateLimiter.consume === "function") {
+        const clientId = getClientId(request);
         const rateLimitResult = await rateLimiter.consume({
           action: game.getRateLimitAction(route),
           gameSlug,
           lobbySlug,
-          clientId: getClientId(request)
+          clientId
         });
 
         if (!rateLimitResult.allowed) {
           sendRateLimitedBounce(response, fallbackLocation, rateLimitResult.retryAfterMs || actionCooldownMs);
           return;
         }
+
+        if (!storedState && lobbySlug !== normalizedDefaultLobbySlug) {
+          const lobbyCreationResult = await rateLimiter.consume({
+            action: "lobby-create",
+            gameSlug,
+            lobbySlug,
+            clientId
+          });
+
+          if (!lobbyCreationResult.allowed) {
+            sendRateLimitedBounce(response, fallbackLocation, lobbyCreationResult.retryAfterMs || actionCooldownMs);
+            return;
+          }
+        }
       }
 
-      await game.runAction(route, activeStateStore);
+      let latestState;
+      try {
+        latestState = await game.runAction(route, activeStateStore);
+      } catch (error) {
+        if (error && error.code === STATE_BUSY_ERROR_CODE) {
+          sendRateLimitedBounce(response, fallbackLocation, actionCooldownMs);
+          return;
+        }
+
+        throw error;
+      }
+
       if (leaderboardStore && typeof leaderboardStore.recordScore === "function") {
-        const latestState = game.normalizeState(await activeStateStore.getState());
-        const score = getLeaderboardScore(game, latestState);
+        const score = getLeaderboardScore(game, game.normalizeState(latestState || await activeStateStore.readState()));
         if (score > 0) {
           await leaderboardStore.recordScore(gameSlug, lobbySlug, score);
         }

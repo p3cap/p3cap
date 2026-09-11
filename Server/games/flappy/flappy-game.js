@@ -233,6 +233,11 @@ function createFreshState(overrides = {}) {
   };
 }
 
+// A lobby's starting state is seeded from its slug, so it looks the same until its first action saves it.
+function createLobbyState(lobbySlug) {
+  return createFreshState(lobbySlug ? { seed: mixSeed("lobby", lobbySlug) } : {});
+}
+
 function normalizeState(state) {
   const source = state || {};
 
@@ -582,22 +587,22 @@ async function runAction(route, stateStore) {
     return;
   }
 
-  await stateStore.mutateState((current) => applyTap(current));
+  return stateStore.mutateState((current) => applyTap(current));
 }
 
-function createFileStateStore({ filePath }) {
+function createFileStateStore({ filePath, lobbySlug }) {
   return createFileJsonStateStore({
     filePath,
-    createFreshState,
+    createFreshState: () => createLobbyState(lobbySlug),
     normalizeState
   });
 }
 
-function createRedisStateStore({ redis, key }) {
+function createRedisStateStore({ redis, key, lobbySlug }) {
   return createRedisJsonStateStore({
     redis,
     key,
-    createFreshState,
+    createFreshState: () => createLobbyState(lobbySlug),
     normalizeState
   });
 }
@@ -607,6 +612,7 @@ module.exports = {
   routeMap,
   actionRoutes,
   createFreshState,
+  createLobbyState,
   normalizeState,
   routeNeedsState,
   getRateLimitAction,

@@ -9,6 +9,7 @@ const {
   getLeftDelta,
   getRightDelta,
   getTileInDirection,
+  mixSeed,
   normalizeDoomState,
   applyDoomAction
 } = require("./doom-core");
@@ -40,7 +41,6 @@ const RADAR_AREA = { w: 122, h: 88, inset: 10 };
 const GUN_SPRITE_BOX = { x: 334, y: 234, w: 152, h: 118 };
 const VIEWPORT_CENTER = { x: 360, y: 180 };
 const HUD_TEXT_CLASS = "doom-ui-text outlined";
-const FRAME_FADE_DURATION_MS = 140;
 const GUN_EVENT_BEGIN = "0.14s";
 const ENEMY_REACTION_BEGIN = "0.32s";
 const PLAYER_HURT_BEGIN = "0.86s";
@@ -87,6 +87,13 @@ function routeNeedsState(route) {
 
 function getRateLimitAction(route) {
   return actionRoutes.has(route) ? "doom-step" : route;
+}
+
+// A lobby's starting floor is seeded from its slug, so it stays the same until its first action saves it.
+function createLobbyState(lobbySlug) {
+  return lobbySlug
+    ? createFreshDoomState({ mapSeed: mixSeed("lobby", lobbySlug) })
+    : createFreshDoomState();
 }
 
 function renderHome(rawState, { defaultRedirectUrl = "", gameSlug, lobbySlug, actionCooldownMs = 0 }) {
@@ -214,18 +221,27 @@ function renderViewportFrame() {
 }
 
 function renderBottomStats(state) {
+  // The frame art already labels the ammo and health panels, and the marine face fills the middle column.
   const slots = [
-    { label: "HP", value: String(state.health) },
-    { label: "AMMO", value: String(state.ammo) },
-    { label: "FLOOR", value: String(state.floor) },
-    { label: "SCORE", value: String(state.score) }
+    String(state.ammo),
+    String(state.health),
+    "",
+    `FLOOR ${state.floor}`,
+    `SCORE ${state.score}`
   ];
   const slotWidth = HUD_BOX.w / slots.length;
 
-  return slots.map((slot, index) => {
-    const centerX = HUD_BOX.x + (slotWidth * index) + (slotWidth / 2);
-    return `<text x="${centerX}" y="386" text-anchor="middle" font-size="18" class="${HUD_TEXT_CLASS}">${escapeXml(slot.label)} ${escapeXml(slot.value)}</text>`;
-  }).join("\n");
+  return slots
+    .map((slot, index) => {
+      if (!slot) {
+        return "";
+      }
+
+      const centerX = HUD_BOX.x + (slotWidth * index) + (slotWidth / 2);
+      return `<text x="${centerX}" y="386" text-anchor="middle" font-size="18" class="${HUD_TEXT_CLASS}">${escapeXml(slot)}</text>`;
+    })
+    .filter(Boolean)
+    .join("\n");
 }
 
 function renderVersionLabel(x = 700, y = 407, textAnchor = "end") {
@@ -332,21 +348,6 @@ function withPlayer(state, playerOverride) {
       ...state.player,
       ...playerOverride
     }
-  };
-}
-
-function withSceneState(state, { playerOverride = null, enemiesOverride = null } = {}) {
-  return {
-    ...state,
-    player: playerOverride
-      ? {
-        ...state.player,
-        ...playerOverride
-      }
-      : state.player,
-    enemies: Array.isArray(enemiesOverride)
-      ? enemiesOverride.map((enemy) => ({ ...enemy }))
-      : state.enemies
   };
 }
 
@@ -539,30 +540,15 @@ function renderViewSvg(rawState) {
     return renderFloorClearSvg(state);
   }
 
-  const shouldAnimate = Boolean(state.lastAction);
-  const animationBegin = "0s";
-  const animationMs = FRAME_FADE_DURATION_MS;
-  const previousState = shouldAnimate ? withSceneState(state, {
-    playerOverride: state.lastPlayer,
-    enemiesOverride: state.lastEnemies
-  }) : null;
+  // The scene is embedded once. The previous frame used to be drawn underneath this fully opaque
+  // image, so its crossfade could never be seen and only doubled the size of every response.
   const currentFrame = createRaycastFrame(state);
-  const previousFrame = previousState ? createRaycastFrame(previousState) : null;
   const currentBaseImageUri = createEmbeddedSvgDataUri(renderStaticViewBaseSvg(state, currentFrame));
-  const previousBaseImageUri = shouldAnimate && previousState && previousFrame
-    ? createEmbeddedSvgDataUri(renderStaticViewBaseSvg(previousState, previousFrame))
-    : "";
 
 return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-label="Doom-style game viewport">
   <rect width="720" height="420" fill="#090607" />
   <g>
-      ${previousBaseImageUri ? `
-      <g opacity="1">
-        <animate attributeName="opacity" begin="${animationBegin}" from="1" to="0" dur="${animationMs}ms" fill="freeze" />
-        <image href="${escapeXml(previousBaseImageUri)}" x="0" y="0" width="720" height="420" preserveAspectRatio="none" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />
-      </g>
-      ` : ""}
       <image href="${escapeXml(currentBaseImageUri)}" x="0" y="0" width="720" height="420" preserveAspectRatio="none" image-rendering="pixelated" style="image-rendering: pixelated; image-rendering: crisp-edges;" />
       ${currentFrame.enemyMarkup}
       ${renderViewEvent(state, currentFrame)}
@@ -672,22 +658,22 @@ function renderImage(route, state) {
 }
 
 async function runAction(route, stateStore) {
-  await stateStore.mutateState((current) => applyDoomAction(current, route));
+  return stateStore.mutateState((current) => applyDoomAction(current, route));
 }
 
-function createFileStateStore({ filePath }) {
+function createFileStateStore({ filePath, lobbySlug }) {
   return createFileJsonStateStore({
     filePath,
-    createFreshState: createFreshDoomState,
+    createFreshState: () => createLobbyState(lobbySlug),
     normalizeState: normalizeDoomState
   });
 }
 
-function createRedisStateStore({ redis, key }) {
+function createRedisStateStore({ redis, key, lobbySlug }) {
   return createRedisJsonStateStore({
     redis,
     key,
-    createFreshState: createFreshDoomState,
+    createFreshState: () => createLobbyState(lobbySlug),
     normalizeState: normalizeDoomState
   });
 }
@@ -697,6 +683,7 @@ module.exports = {
   routeMap,
   actionRoutes,
   createFreshState: createFreshDoomState,
+  createLobbyState,
   normalizeState: normalizeDoomState,
   routeNeedsState,
   getRateLimitAction,
