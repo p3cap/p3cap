@@ -13,15 +13,38 @@ const { createRedisRateLimiter, normalizeCooldownMs } = require("./rate-limiter"
 
 let cachedHandler = null;
 
-function getRedisClient() {
-  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+// Vercel names these after the store that was connected, so the prefix depends on how it was added.
+const REDIS_CREDENTIAL_ENV_PAIRS = [
+  ["UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"],
+  ["KV_REST_API_URL", "KV_REST_API_TOKEN"],
+  ["STORAGE_KV_REST_API_URL", "STORAGE_KV_REST_API_TOKEN"]
+];
 
-  if (!url || !token) {
-    throw new Error("Missing Redis credentials. Add an Upstash Redis integration in Vercel or set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.");
+function findRedisCredentials() {
+  for (const [urlKey, tokenKey] of REDIS_CREDENTIAL_ENV_PAIRS) {
+    if (process.env[urlKey] && process.env[tokenKey]) {
+      return { url: process.env[urlKey], token: process.env[tokenKey] };
+    }
   }
 
-  return new Redis({ url, token });
+  // Any other prefix for the same pair, such as MYSTORE_KV_REST_API_URL and MYSTORE_KV_REST_API_TOKEN.
+  const urlKey = Object.keys(process.env).find((key) => key.endsWith("KV_REST_API_URL") && process.env[key]);
+  const tokenKey = urlKey ? `${urlKey.slice(0, -"URL".length)}TOKEN` : "";
+  if (urlKey && process.env[tokenKey]) {
+    return { url: process.env[urlKey], token: process.env[tokenKey] };
+  }
+
+  return null;
+}
+
+function getRedisClient() {
+  const credentials = findRedisCredentials();
+
+  if (!credentials) {
+    throw new Error("Missing Redis credentials. Connect an Upstash Redis store in Vercel, or set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN. KV_REST_API_* and <PREFIX>_KV_REST_API_* pairs are accepted too.");
+  }
+
+  return new Redis(credentials);
 }
 
 function getHandler() {

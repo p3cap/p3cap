@@ -45,10 +45,14 @@ This project is set up so you can deploy the `Server` directory directly as a Ve
 4. Let Vercel attach the Redis environment variables to the project.
 5. Redeploy after the integration is connected.
 
-The backend supports both of these env var pairs:
+The backend accepts any of these env var pairs:
 
 - `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`
 - `KV_REST_API_URL` and `KV_REST_API_TOKEN`
+- `STORAGE_KV_REST_API_URL` and `STORAGE_KV_REST_API_TOKEN`
+
+Vercel names these after the store you connect, so any other `<PREFIX>_KV_REST_API_URL` with a
+matching `<PREFIX>_KV_REST_API_TOKEN` works as well. Read-only tokens are never picked.
 
 ### Recommended environment variables
 
